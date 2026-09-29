@@ -6,7 +6,8 @@ import { host, ROUTES_AREA, SIDEBAR_NAV_AREA, PALETTE_AREA } from '@hermes/plugi
 import { jsx, jsxs } from 'react/jsx-runtime'
 import { useEffect, useRef, useState } from 'react'
 
-const CANVAS_URL = 'https://raw.githubusercontent.com/Hopers/hermes-canvas-plugin/main/canvas.html'
+const CANVAS_API = 'https://api.github.com/repos/Hopers/hermes-canvas-plugin/contents/canvas.html'
+// Accept: vnd.github.raw 让 contents API 直接返回文件内容（不经 raw.githubusercontent 的 CDN 缓存）
 
 function CanvasPage() {
   const [state, setState] = useState('loading')
@@ -18,7 +19,10 @@ function CanvasPage() {
     setState('loading')
     setErr('')
     try {
-      const res = await fetch(CANVAS_URL, { cache: 'no-cache' })
+      const res = await fetch(CANVAS_API, {
+        headers: { Accept: 'application/vnd.github.raw' },
+        cache: 'no-cache',
+      })
       if (!res.ok) throw new Error('HTTP ' + res.status)
       const html = await res.text()
       if (!html || html.length < 500) throw new Error('画布内容异常(' + html.length + 'B)')
