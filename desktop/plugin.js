@@ -1,16 +1,10 @@
-// Hermes 无限画布插件 v0.4 — unified package, ctx.rest 优先
-// 主路: ctx.rest('/canvas') 走 Desktop↔服务器现有连接（零公网暴露，服务器即写即得）
-// 兜底: agent 半边未挂载时退回 CDN 瀑布（jsdelivr → raw）
+// Hermes 无限画布插件 v0.5 — unified package, ctx.rest 唯一数据源
+// 数据流: ctx.rest('/canvas') 走 Desktop↔服务器现有连接（零公网暴露，服务器即写即得）
+// 无 CDN 兜底：通道故障直接报错暴露问题，不静默降级（用户拍板 2026-09-29）
 // 回传: iframe postMessage → prompt.submit 直达当前会话
 import { host, ROUTES_AREA, SIDEBAR_NAV_AREA, PALETTE_AREA } from '@hermes/plugin-sdk'
 import { jsx, jsxs } from 'react/jsx-runtime'
 import { useEffect, useRef, useState } from 'react'
-
-const CANVAS_SOURCES = [
-  'https://cdn.jsdelivr.net/gh/Hopers/hermes-canvas-plugin@main/canvas.html',
-  'https://raw.githubusercontent.com/Hopers/hermes-canvas-plugin/main/canvas.html',
-  'https://api.github.com/repos/Hopers/hermes-canvas-plugin/contents/canvas.html',
-]
 
 function CanvasPage({ ctx }) {
   const [state, setState] = useState('loading')
@@ -36,30 +30,9 @@ function CanvasPage({ ctx }) {
       }
       if (data && data.ok === false && data.error) throw new Error(data.error)
       throw new Error('bad payload')
-    } catch (restErr) {
-      // 兜底：CDN 瀑布
-      let lastErr = 'rest: ' + ((restErr && restErr.message) || String(restErr))
-      for (const url of CANVAS_SOURCES) {
-        try {
-          const headers = url.includes('api.github.com')
-            ? { Accept: 'application/vnd.github.raw' }
-            : undefined
-          const res = await fetch(url, { headers, cache: 'no-cache' })
-          if (!res.ok) { lastErr += ' | HTTP ' + res.status + ' @ ' + new URL(url).host; continue }
-          const html = await res.text()
-          if (!html || html.length < 500 || !html.includes('<script')) { lastErr += ' | bad @ ' + new URL(url).host; continue }
-          if (frameRef.current) {
-            frameRef.current.srcdoc = html
-            setSrc('cdn-fallback @ ' + new URL(url).host)
-            setState('ready')
-          }
-          return
-        } catch (e) {
-          lastErr += ' | ' + ((e && e.message) || String(e)) + ' @ ' + new URL(url).host
-        }
-      }
+    } catch (e) {
       setState('error')
-      setErr(lastErr)
+      setErr(((e && e.message) || String(e)) + ' — 服务器通道不可用（agent 半边未启用/后端未挂载），点刷新重试或直接找 Hermes 修')
     }
   }
 
