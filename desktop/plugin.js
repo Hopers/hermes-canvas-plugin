@@ -13,19 +13,22 @@ function CanvasPage({ ctx }) {
   const [lastSent, setLastSent] = useState('')
   const frameRef = useRef(null)
 
+  const applyHtml = (html) => {
+    if (frameRef.current) {
+      frameRef.current.srcdoc = html
+      setSrc('server ✓ ' + new Date().toLocaleTimeString())
+      setState('ready')
+    }
+  }
+
   const load = async () => {
     if (!ctx) return
     setState('loading')
     setErr('')
-    // 主路：ctx.rest 走现有连接，服务器即写即得
     try {
       const data = await ctx.rest('/canvas')
       if (data && data.ok === true && typeof data.html === 'string' && data.html.length > 500) {
-        if (frameRef.current) {
-          frameRef.current.srcdoc = data.html
-          setSrc('server ✓ ' + new Date((data.mtime || 0) * 1000).toLocaleTimeString())
-          setState('ready')
-        }
+        applyHtml(data.html)
         return
       }
       if (data && data.ok === false && data.error) throw new Error(data.error)
