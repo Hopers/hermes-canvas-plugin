@@ -1,39 +1,51 @@
-// Hermes 无限画布插件 — 桌面整页版
-// repo: Hopers/hermes-canvas-plugin (private)
-// 布局: desktop/plugin.js (desktop half, 由 app 安装时拷入 desktop-plugins/)
-// 画布内容: repo 根 canvas.html, 经 raw.githubusercontent 拉取后 srcdoc 注入 iframe（绕开 content-type/缓存问题）
+// Hermes 无限画布插件 v0.3 — desktop half
+// 侧栏整页「画布」；内容三级瀑布拉取（jsdelivr → raw → api.github），任一源可用即可
+// 回传: iframe postMessage → prompt.submit 直达当前会话
 import { host, ROUTES_AREA, SIDEBAR_NAV_AREA, PALETTE_AREA } from '@hermes/plugin-sdk'
 import { jsx, jsxs } from 'react/jsx-runtime'
 import { useEffect, useRef, useState } from 'react'
 
-const CANVAS_API = 'https://api.github.com/repos/Hopers/hermes-canvas-plugin/contents/canvas.html'
-// Accept: vnd.github.raw 让 contents API 直接返回文件内容（不经 raw.githubusercontent 的 CDN 缓存）
+const CANVAS_SOURCES = [
+  'https://cdn.jsdelivr.net/gh/Hopers/hermes-canvas-plugin@main/canvas.html',
+  'https://raw.githubusercontent.com/Hopers/hermes-canvas-plugin/main/canvas.html',
+  'https://api.github.com/repos/Hopers/hermes-canvas-plugin/contents/canvas.html',
+]
 
 function CanvasPage() {
   const [state, setState] = useState('loading')
   const [err, setErr] = useState('')
+  const [src, setSrc] = useState('')
   const [lastSent, setLastSent] = useState('')
   const frameRef = useRef(null)
 
   const load = async () => {
     setState('loading')
     setErr('')
-    try {
-      const res = await fetch(CANVAS_API, {
-        headers: { Accept: 'application/vnd.github.raw' },
-        cache: 'no-cache',
-      })
-      if (!res.ok) throw new Error('HTTP ' + res.status)
-      const html = await res.text()
-      if (!html || html.length < 500) throw new Error('画布内容异常(' + html.length + 'B)')
-      if (frameRef.current) {
-        frameRef.current.srcdoc = html
-        setState('ready')
+    let lastErr = 'no source tried'
+    for (const url of CANVAS_SOURCES) {
+      try {
+        const headers = url.includes('api.github.com')
+          ? { Accept: 'application/vnd.github.raw' }
+          : undefined
+        const res = await fetch(url, { headers, cache: 'no-cache' })
+        if (!res.ok) { lastErr = 'HTTP ' + res.status + ' @ ' + new URL(url).host; continue }
+        const html = await res.text()
+        if (!html || html.length < 500 || !html.includes('<script')) {
+          lastErr = 'bad content @ ' + new URL(url).host
+          continue
+        }
+        if (frameRef.current) {
+          frameRef.current.srcdoc = html
+          setSrc(new URL(url).host)
+          setState('ready')
+        }
+        return
+      } catch (e) {
+        lastErr = ((e && e.message) || String(e)) + ' @ ' + new URL(url).host
       }
-    } catch (e) {
-      setState('error')
-      setErr(String((e && e.message) || e))
     }
+    setState('error')
+    setErr(lastErr)
   }
 
   useEffect(() => {
@@ -84,6 +96,7 @@ function CanvasPage() {
             },
             children: '🔄 刷新画布',
           }),
+          src ? jsx('span', { style: statStyle, children: src }) : null,
           state === 'loading' ? jsx('span', { style: statStyle, children: '加载中…（冷启动约 10s）' }) : null,
           state === 'error'
             ? jsx('span', { style: { fontSize: '11px', color: 'var(--ui-text-error, #f38ba8)' }, children: '加载失败: ' + err + ' — 点刷新重试' })
@@ -91,7 +104,7 @@ function CanvasPage() {
           lastSent ? jsx('span', { style: statStyle, children: '最近回传 ' + lastSent + ' ✓' }) : null,
           jsx('span', {
             style: { marginLeft: 'auto', fontSize: '11px', color: 'var(--ui-text-quaternary)' },
-            children: '在画布上圈注 → 点画布内「回传画布」→ 标注直达当前会话',
+            children: '圈注 → 回传画布 → 标注直达当前会话',
           }),
         ],
       }),

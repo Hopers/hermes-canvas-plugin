@@ -1,0 +1,5 @@
+name: hermes-canvas
+version: 0.2.0
+description: "Hermes 无限画布 — desktop 页面 + agent 侧画布内容伺服（/root/.hermes/canvas/canvas.html）"
+pip_dependencies: []
+requires_env: []
