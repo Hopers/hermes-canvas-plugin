@@ -140,10 +140,30 @@
     return { tag: 'CANVAS-V1-C', sentAt: new Date().toISOString(), imgs: all.filter(function (s) { return s.type === 'image'; }).length, marks: marks };
   };
 
+  // 双宿主回传：聊天 widget 有 window.hermes.send；desktop 插件 iframe 用 parent.postMessage
+  var push = function (text) {
+    if (window.hermes && typeof window.hermes.send === 'function') {
+      window.hermes.send(text);
+      return 'widget';
+    }
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ __hermesCanvas: true, text: text }, '*');
+      return 'plugin';
+    }
+    throw new Error('无回传通道（既无 hermes.send 也无 parent）');
+  };
+
   // hermes.send 通道：prompt 上限 500 字符、每帧每秒 1 条（官方文档）→ 分片 420 字、间隔 1.2s
   var sendChunked = function (text, done) {
+    var via = (window.hermes && typeof window.hermes.send === 'function') ? 'widget' : 'plugin';
+    if (via === 'plugin') {
+      // 插件宿主：postMessage 无长度/频率限制，整包直发，插件端攒齐才进会话
+      try { push(text); } catch (e) { st('回传失败: ' + e.message, true); return; }
+      done(1);
+      return;
+    }
     if (text.length <= 460) {
-      try { window.hermes.send(text); } catch (e) { st('回传失败: ' + e.message, true); return; }
+      try { push(text); } catch (e) { st('回传失败: ' + e.message, true); return; }
       done(1);
       return;
     }
