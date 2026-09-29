@@ -1,5 +1,6 @@
-// Hermes 无限画布插件 v0.3 — desktop half
-// 侧栏整页「画布」；内容三级瀑布拉取（jsdelivr → raw → api.github），任一源可用即可
+// Hermes 无限画布插件 v0.4 — unified package, ctx.rest 优先
+// 主路: ctx.rest('/canvas') 走 Desktop↔服务器现有连接（零公网暴露，服务器即写即得）
+// 兜底: agent 半边未挂载时退回 CDN 瀑布（jsdelivr → raw）
 // 回传: iframe postMessage → prompt.submit 直达当前会话
 import { host, ROUTES_AREA, SIDEBAR_NAV_AREA, PALETTE_AREA } from '@hermes/plugin-sdk'
 import { jsx, jsxs } from 'react/jsx-runtime'
@@ -11,7 +12,7 @@ const CANVAS_SOURCES = [
   'https://api.github.com/repos/Hopers/hermes-canvas-plugin/contents/canvas.html',
 ]
 
-function CanvasPage() {
+function CanvasPage({ ctx }) {
   const [state, setState] = useState('loading')
   const [err, setErr] = useState('')
   const [src, setSrc] = useState('')
@@ -19,33 +20,47 @@ function CanvasPage() {
   const frameRef = useRef(null)
 
   const load = async () => {
+    if (!ctx) return
     setState('loading')
     setErr('')
-    let lastErr = 'no source tried'
-    for (const url of CANVAS_SOURCES) {
-      try {
-        const headers = url.includes('api.github.com')
-          ? { Accept: 'application/vnd.github.raw' }
-          : undefined
-        const res = await fetch(url, { headers, cache: 'no-cache' })
-        if (!res.ok) { lastErr = 'HTTP ' + res.status + ' @ ' + new URL(url).host; continue }
-        const html = await res.text()
-        if (!html || html.length < 500 || !html.includes('<script')) {
-          lastErr = 'bad content @ ' + new URL(url).host
-          continue
-        }
+    // 主路：ctx.rest 走现有连接，服务器即写即得
+    try {
+      const data = await ctx.rest('/canvas')
+      if (data && data.ok === true && typeof data.html === 'string' && data.html.length > 500) {
         if (frameRef.current) {
-          frameRef.current.srcdoc = html
-          setSrc(new URL(url).host)
+          frameRef.current.srcdoc = data.html
+          setSrc('server ✓ ' + new Date((data.mtime || 0) * 1000).toLocaleTimeString())
           setState('ready')
         }
         return
-      } catch (e) {
-        lastErr = ((e && e.message) || String(e)) + ' @ ' + new URL(url).host
       }
+      if (data && data.ok === false && data.error) throw new Error(data.error)
+      throw new Error('bad payload')
+    } catch (restErr) {
+      // 兜底：CDN 瀑布
+      let lastErr = 'rest: ' + ((restErr && restErr.message) || String(restErr))
+      for (const url of CANVAS_SOURCES) {
+        try {
+          const headers = url.includes('api.github.com')
+            ? { Accept: 'application/vnd.github.raw' }
+            : undefined
+          const res = await fetch(url, { headers, cache: 'no-cache' })
+          if (!res.ok) { lastErr += ' | HTTP ' + res.status + ' @ ' + new URL(url).host; continue }
+          const html = await res.text()
+          if (!html || html.length < 500 || !html.includes('<script')) { lastErr += ' | bad @ ' + new URL(url).host; continue }
+          if (frameRef.current) {
+            frameRef.current.srcdoc = html
+            setSrc('cdn-fallback @ ' + new URL(url).host)
+            setState('ready')
+          }
+          return
+        } catch (e) {
+          lastErr += ' | ' + ((e && e.message) || String(e)) + ' @ ' + new URL(url).host
+        }
+      }
+      setState('error')
+      setErr(lastErr)
     }
-    setState('error')
-    setErr(lastErr)
   }
 
   useEffect(() => {
@@ -121,16 +136,20 @@ function CanvasPage() {
   })
 }
 
+let pageCtx = null
+const CanvasPageWithCtx = () => jsx(CanvasPage, { ctx: pageCtx })
+
 export default {
   id: 'hermes-canvas',
   name: '无限画布',
   register(ctx) {
+    pageCtx = ctx
     ctx.registerMany([
       {
         id: 'page',
         area: ROUTES_AREA,
         data: { path: '/canvas' },
-        render: () => jsx(CanvasPage, {}),
+        render: () => jsx(CanvasPageWithCtx, {}),
       },
       {
         id: 'nav',
