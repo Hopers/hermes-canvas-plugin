@@ -16,7 +16,7 @@ function CanvasPage({ ctx }) {
   const applyHtml = (html) => {
     if (frameRef.current) {
       frameRef.current.srcdoc = html
-      setSrc('server ✓ ' + new Date().toLocaleTimeString())
+      setSrc('SERVER · ' + new Date().toLocaleTimeString())
       setState('ready')
     }
   }
@@ -52,7 +52,7 @@ function CanvasPage({ ctx }) {
       try {
         await host.request('prompt.submit', { session_id: sid, text: d.text })
         setLastSent(new Date().toLocaleTimeString())
-        host.notify({ kind: 'info', message: '🎨 画布标注已回传给 Hermes' })
+        host.notify({ kind: 'info', message: '画布标注已回传给 Hermes' })
       } catch (e) {
         host.notify({ kind: 'error', message: '画布回传失败: ' + ((e && e.message) || e) })
       }
@@ -75,7 +75,7 @@ function CanvasPage({ ctx }) {
           flexShrink: 0,
         },
         children: [
-          jsx('span', { children: '🎨 无限画布' }),
+          jsx('span', { children: '画布' }),
           jsx('button', {
             type: 'button',
             onClick: () => void load(),
@@ -83,16 +83,27 @@ function CanvasPage({ ctx }) {
               border: '1px solid var(--ui-stroke-secondary)', borderRadius: '6px',
               background: 'var(--ui-control-background, transparent)',
               color: 'var(--ui-text-secondary)', padding: '2px 10px',
-              fontSize: '11px', cursor: 'pointer',
+              fontSize: '11px', cursor: 'pointer', display: 'inline-flex',
+              alignItems: 'center', gap: '5px',
             },
-            children: '🔄 刷新画布',
+            children: [
+              jsx('svg', {
+                viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8',
+                strokeLinecap: 'round', strokeLinejoin: 'round', style: { width: '12px', height: '12px' },
+                children: [
+                  jsx('path', { d: 'M21 12a9 9 0 1 1-2.64-6.36' }),
+                  jsx('path', { d: 'M21 3v6h-6' }),
+                ],
+              }),
+              jsx('span', { children: '刷新画布' }),
+            ],
           }),
           src ? jsx('span', { style: statStyle, children: src }) : null,
           state === 'loading' ? jsx('span', { style: statStyle, children: '加载中…（冷启动约 10s）' }) : null,
           state === 'error'
             ? jsx('span', { style: { fontSize: '11px', color: 'var(--ui-text-error, #f38ba8)' }, children: '加载失败: ' + err + ' — 点刷新重试' })
             : null,
-          lastSent ? jsx('span', { style: statStyle, children: '最近回传 ' + lastSent + ' ✓' }) : null,
+          lastSent ? jsx('span', { style: statStyle, children: '最近回传 ' + lastSent + '' }) : null,
           jsx('span', {
             style: { marginLeft: 'auto', fontSize: '11px', color: 'var(--ui-text-quaternary)' },
             children: '圈注 → 回传画布 → 标注直达当前会话',
