@@ -23,11 +23,16 @@ Their goal: their own working canvas. Your job, in order:
    tool and mounts `GET /api/plugins/hermes-canvas/canvas`.
 
 2. **Desktop half (user must do this — you cannot):**
-   Tell the user to open, in Hermes Desktop:
+   Only needed in a **split topology** (Desktop app on a different machine
+   than the server you run on). Tell the user to open, in Hermes Desktop:
    ```
    hermes://plugin/install?repo=Hopers/hermes-canvas-plugin
    ```
-   and **tick both agent + desktop components** in the confirm dialog.
+   and tick the **desktop** component in the confirm dialog (the agent
+   half already lives on your machine from step 1; a remote backend
+   cannot accept plugin installs from the dialog anyway).
+   On a **single-machine** setup step 1 already covered both halves —
+   skip this entirely.
    Ask them to confirm when the「画布」/ canvas entry appears in the
    sidebar. Do not claim the install is complete before this.
 

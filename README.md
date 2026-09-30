@@ -39,16 +39,32 @@ working fully offline, forever, on any host you copy it to.
 
 ## Install
 
-Requirements: a Hermes server (agent half installs there) + Hermes Desktop.
+Requirements: a Hermes server (the agent half lives there) + Hermes
+Desktop. Both connection modes work — Desktop logged into a **local**
+gateway on the same machine, or into a **remote** gateway over SSH.
+The install flow differs slightly:
+
+**Single machine** (Desktop and agent on the same box — the common case):
 
 ```bash
-# on the Hermes server
 hermes plugins install Hopers/hermes-canvas-plugin --enable
 ```
 
-Or in Desktop: open
-`hermes://plugin/install?repo=Hopers/hermes-canvas-plugin` and tick both
-the **agent** and **desktop** components in the confirm dialog.
+One command, both halves land: the package goes into `plugins/`, and the
+Desktop app picks up the `desktop/` half from it automatically.
+
+**Split topology** (agent on a server, Desktop elsewhere):
+
+```bash
+# 1. on the server (or ask your agent to run it)
+hermes plugins install Hopers/hermes-canvas-plugin --enable
+
+# 2. in Desktop (on YOUR machine), open:
+hermes://plugin/install?repo=Hopers/hermes-canvas-plugin
+#   tick the **desktop** component only — the agent half already lives on
+#   the server, and a remote backend cannot accept plugin installs from
+#   the dialog anyway; the desktop half is a local clone on this machine
+```
 
 The canvas page appears in the Desktop sidebar (🎨 / 布局 icon). First
 board: ask your agent to use the `canvas_write` tool, or build one with
