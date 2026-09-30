@@ -1,5 +1,5 @@
 name: hermes-canvas
-version: 1.0.0
+version: 1.1.0
 description: "Infinite canvas for Hermes Desktop — agent-served tldraw board with annotation round-trips (canvas_write tool + /canvas REST route + sidebar page)"
 author: Hopers
 pip_dependencies: []

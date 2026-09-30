@@ -2,8 +2,10 @@
 
 Everything below was verified empirically against
 `@tldraw/tldraw@3.13.0` (2026-09). tldraw's docs still describe v2 in
-places — where they disagree with reality, reality wins. If you are
-forking the canvas template, these are the traps.
+places — where they disagree with reality, reality wins. These notes are
+for anyone regenerating or rebuilding the bundled engine in
+`demo/canvas.html` (or building their own zero-network tldraw artifact) —
+the traps below are what it took.
 
 ## 1. Zero-network inlining (the whole point)
 
@@ -88,5 +90,6 @@ arrows as visual guides only and pair things by shape-id yourself.
 ## 5. Licenses
 
 tldraw is not OSI-open-source; bundling is permitted as part of another
-application if the license travels along. `gen_assets.py` captures it to
-`licenses/`. Anton (display font) is OFL 1.1. See `../NOTICE.md`.
+application if the license travels along — a verbatim copy ships in
+`licenses/tldraw-LICENSE.md`. Anton (display font) is OFL 1.1. See
+`../NOTICE.md`.

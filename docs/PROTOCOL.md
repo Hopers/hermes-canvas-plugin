@@ -83,10 +83,50 @@ multiple pairs per board are valid.
   canvas px; convert to image-local by subtracting the image shape origin,
   then to percentages by dividing by image `w/h`.
 
+## The `__INITIAL__` payload (board content format)
+
+The board's content is the `window.__INITIAL__` JSON segment inside
+`demo/canvas.html` (single occurrence; regex-swappable). tldraw v3
+records:
+
+```jsonc
+{
+  "assets": [
+    { "id": "asset:img1", "typeName": "asset", "type": "image",
+      "props": { "name": "img1.webp", "src": "data:image/webp;base64,...",
+                 "w": 640, "h": 640, "mimeType": "image/webp", "isAnimated": false },
+      "meta": {} }
+  ],
+  "shapes": [
+    { "id": "shape:img1", "type": "image", "x": 60, "y": 50,
+      "props": { "assetId": "asset:img1", "w": 640, "h": 640 } },
+    { "id": "shape:t1", "type": "text", "x": 80, "y": 480,
+      "props": { "richText": { "type": "doc", "content": [
+                   { "type": "paragraph", "content": [
+                     { "type": "text", "text": "caption" } ] } ] },
+                 "color": "black", "size": "s" } },
+    { "id": "shape:g1", "type": "geo", "x": 100, "y": 100,
+      "props": { "geo": "rectangle", "w": 200, "h": 120,
+                 "color": "red", "dash": "dashed", "fill": "none", "size": "s" } }
+  ]
+}
+```
+
+Notes:
+
+- asset `props.src/name/w/h/mimeType` all live in `props` (v2 put them
+  top-level) — see TLDRAW-NOTES §2 for the rest of the v3 API contracts
+- text `richText` is a Tiptap doc (`{type:'doc',content:[...]}`) — an
+  array is NOT accepted
+- `createShapes` accepts partials; tldraw fills defaults
+- images: WebP data URLs, ≤640 px wide (~50 KB each inline)
+- empty board: `{"assets":[],"shapes":[]}`
+
 ## Round trip
 
-1. Agent builds board (images + any scaffold) → `canvas_write` /
-   `build_canvas.py` → user hits **Refresh** in the Desktop page.
+1. Agent builds board (images + any scaffold) → edits the demo's
+   `__INITIAL__` segment, `canvas_write` → user hits **Refresh** in the
+   Desktop page.
 2. User annotates (draw/arrow/text freely, or the scaffold tools) →
    **回传画布**.
 3. Payload arrives in the session (fragmented on the widget channel).

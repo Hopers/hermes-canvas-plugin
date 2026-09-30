@@ -30,7 +30,7 @@ async def get_canvas() -> JSONResponse:
         html = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return JSONResponse(
-            {"ok": False, "error": "canvas.html not found on server — ask the agent to build one first (canvas_write / canvas-template)"},
+            {"ok": False, "error": "canvas.html not found on server — ask the agent to build one first (edit demo/canvas.html's __INITIAL__ segment, then canvas_write)"},
             status_code=404,
         )
     return JSONResponse({

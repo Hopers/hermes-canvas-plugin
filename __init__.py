@@ -30,10 +30,11 @@ def _canvas_dir() -> Path:
 def canvas_write(html: str, check: bool = True) -> str:
     """Write a complete, self-contained canvas.html to the canvas dir.
 
-    Accepts either a full HTML document (must contain the tldraw bootstrap)
-    or a JSON string of ``{"assets": [...], "shapes": [...]}`` — in the
-    JSON case a minimal shell is assembled around it (see
-    canvas-template/ for the full editorial shell).
+    Accepts either a full HTML document or a JSON string of
+    ``{"assets": [...], "shapes": [...]}`` — the JSON is wrapped in a
+    minimal esm.sh-powered shell (needs network at view time). The
+    preferred route is editing demo/canvas.html's ``__INITIAL__`` segment
+    directly (zero-network, zero build) and passing the full HTML here.
     """
     out_dir = _canvas_dir()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -64,9 +65,9 @@ def canvas_write(html: str, check: bool = True) -> str:
 
 
 # Minimal quick-write shell. Plain string + .replace() — f-strings and JS
-# braces do not mix. This variant loads the engine from the tldraw CDN, so
-# it is only a fallback for quick boards; use canvas-template/ for the
-# fully-offline self-contained build.
+# braces do not mix. This variant loads the engine from esm.sh, so it is
+# only a fallback (the zero-network route is editing demo/canvas.html's
+# __INITIAL__ segment — see README "Making boards").
 _MINIMAL_SHELL = """<!DOCTYPE html>
 <html lang="zh" data-theme="dark">
 <head><meta charset="utf-8">
@@ -118,9 +119,10 @@ def register(ctx: Any) -> None:
         schema={
             "name": "canvas_write",
             "description": (
-                "Write the Hermes infinite canvas (canvas.html). Pass a full self-contained "
-                "HTML document built from canvas-template/, or a JSON {assets,shapes} payload "
-                "for a quick CDN-shell board. The Desktop canvas page picks it up on Refresh."
+                "Write the Hermes infinite canvas (canvas.html). Preferred: pass the demo/canvas.html "
+                "with its __INITIAL__ JSON segment swapped for your board (zero-network). Fallback: a "
+                "bare JSON {assets,shapes} payload gets wrapped in a minimal esm.sh shell. The Desktop "
+                "canvas page picks it up on Refresh."
             ),
             "parameters": {
                 "type": "object",
