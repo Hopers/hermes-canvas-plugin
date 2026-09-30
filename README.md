@@ -26,6 +26,12 @@ connection Desktop already has to its Hermes server.*
 widget, plugin page) where external fetches are blocked — and it keeps
 working fully offline, forever, on any host you copy it to.
 
+![hermes-canvas in the Desktop sidebar](docs/screenshot.webp)
+
+*Live in the Hermes Desktop sidebar: a move-pair annotation (red box A =
+source, box B = target) over the left image, and the regenerated result
+on the right — one round of the loop, done.*
+
 ## Features
 
 - **Zero-network tldraw** — engine, 16 fonts, icon sprite, translations
