@@ -37,9 +37,8 @@ working fully offline, forever, on any host you copy it to.
   page, auto-detected send channels
 - **Agent tool included** — `canvas_write` writes the board; your agent
   can push new content without touching plugin code
-- **Own the template** — `canvas-template/` is a standalone build pipeline
-  (npm + esbuild + one Python script); retheme the shell, swap fonts,
-  fork the whole look
+- **Hackable artifact** — `demo/canvas.html` is the board *and* the
+  template: content is one JSON segment, chrome is plain text (below)
 
 ## Install
 
@@ -70,54 +69,68 @@ hermes://plugin/install?repo=Hopers/hermes-canvas-plugin
 #   the dialog anyway; the desktop half is a local clone on this machine
 ```
 
-The canvas page appears in the Desktop sidebar (the canvas / layout icon). First
-board: ask your agent to use the `canvas_write` tool, or build one with
-the template:
+The canvas page appears in the Desktop sidebar (the canvas / layout icon).
 
 > **No-CLI path:** just send this repo's URL to your Hermes agent and say
 > "set up my canvas" — `AGENTS.md` in the repo root tells it the whole
 > flow, including the `hermes://` link to hand you. The one thing it
 > cannot do is clicking that Desktop install dialog.
->
-> **Fastest first board (no build at all):** the committed
-> `canvas-template/demo/canvas.html` is a complete zero-network board —
-> swap its `window.__INITIAL__` JSON segment for your content and it's
-> ready (AGENTS.md documents this as Route A). The template build below
-> is only needed for custom shells, locales, or version bumps.
 
-```bash
-git clone https://github.com/Hopers/hermes-canvas-plugin
-cd hermes-canvas-plugin/canvas-template
-npm install && python3 gen_assets.py && npm run bundle
-python3 build_canvas.py    # init optional: init.json → init.example.json → empty
-                             # → $HERMES_HOME/canvas/canvas.html
+## Making boards — the one route
+
+`demo/canvas.html` is a fully-built, zero-network canvas. **You never
+build anything — you edit this file.** It has two editable seams:
+
+**1. Content — the `__INITIAL__` segment.** The board's entire content is
+one JSON block:
+
+```
+<script>window.__INITIAL__ = {"assets":[...],"shapes":[...]};</script>
 ```
 
-Hit **Refresh** in the canvas page. Loop:
+Locate it (regex `<script>window\.__INITIAL__ = .*?;</script>`, single
+occurrence), replace with your payload, save. Image assets are data URLs:
+
+```bash
+ffmpeg -i in.png -vf "scale='min(640,iw)':-2" -quality 80 out.webp
+base64 -w0 out.webp   # → asset props.src = "data:image/webp;base64,..."
+```
+
+Asset/shape record format: [docs/PROTOCOL.md](docs/PROTOCOL.md).
+Write the result to `$HERMES_HOME/canvas/canvas.html`, hit **Refresh**
+in the canvas page. Loop:
 
 1. Agent puts images on the board (WebP data URLs, ≤640 px)
 2. You circle / arrow / text / drop move-pairs or AI-slots
-3. Hit **回传画布** ("send back") — marks land in the session as `CANVAS-V1-C` JSON
+3. Hit **回传画布** ("send back") — marks land in the session as
+   `CANVAS-V1-C` JSON
 4. Agent parses ([protocol](docs/PROTOCOL.md)), edits or generates, board
    updates; hit Refresh
+
+**2. Chrome & language — plain text.** All button labels, headings and
+status messages are plain strings inside the file (`sed` them): the shell
+ships in Chinese — localize freely. The tldraw UI locale is the literal
+`locale:"zh-cn"` in the `updateUserPreferences` calls (en/zh-cn
+translations both inlined; other locales would need rebuilding, which is
+out of scope for this repo).
+
+The `canvas_write` tool accepts either the edited full HTML or a bare
+`{"assets":[],"shapes":[...]}` JSON (it then wraps a minimal esm.sh shell
+— needs network at view time; the demo route above never does).
 
 ## Repo layout
 
 ```
 ├── plugin.yaml            # unified package manifest (agent + desktop halves)
 ├── __init__.py            # agent half: canvas_write tool
+├── demo/canvas.html       # the board AND the template — edit, never build
+├── licenses/tldraw-LICENSE.md  # travels with the bundled tldraw (see NOTICE)
 ├── dashboard/
 │   ├── manifest.json      # backend route mount
 │   └── plugin_api.py      # GET /api/plugins/hermes-canvas/canvas → canvas.html
 ├── desktop/plugin.js      # Desktop half: sidebar page, iframe + prompt.submit relay
-├── canvas-template/       # standalone build pipeline for canvas.html
-│   ├── shell.html         #   page chrome (editorial style — swap freely)
-│   ├── entry.jsx          #   engine wiring + annotation protocol
-│   ├── gen_assets.py      #   CDN → data-URL asset module (license capture too)
-│   ├── build_canvas.py    #   assembler (shell + CSS + bundle + init.json)
-│   └── design-assets/     #   optional Anton display font (OFL)
 └── docs/
-    ├── PROTOCOL.md        # CANVAS-V1-C wire format
+    ├── PROTOCOL.md        # CANVAS-V1-C wire format + init payload spec
     └── TLDRAW-NOTES.md    # tldraw v3 zero-network inlining field notes
 ```
 
@@ -144,7 +157,7 @@ Two topologies — check which one you are on:
     the desktop half is a separate local clone there; running the CLI
     update *on the Desktop machine* does **not** touch it.
 
-- **New board content only** — the agent rewrites canvas.html (server
+- **New board content only** — rewrite the `__INITIAL__` segment (server
   side); hit Refresh in the plugin. No reinstall, no update, nothing.
 
 ## Design decisions worth stealing
@@ -153,11 +166,14 @@ Two topologies — check which one you are on:
   its existing authenticated connection to the Hermes server — no CDN, no
   public exposure, no stale cache. The day this channel fails, the plugin
   fails loudly instead of degrading to a stale fallback (deliberate).
-- **Canvas content never enters git — the *live* board.** Your working
-  canvas is server-local state (`$HERMES_HOME/canvas/canvas.html`),
-  rewritten by the agent on every round; only the committed
-  `canvas-template/demo/canvas.html` showcase (a sample board) travels
-  with the repo.
+- **The artifact is the template.** No build pipeline to maintain, no
+  Node toolchain to install — an agent with `sed` and a JSON payload can
+  reshape the whole board. Complexity lives in the artifact once, not in
+  everyone's workflow forever.
+- **The *live* board never enters git.** Your working canvas is
+  server-local state (`$HERMES_HOME/canvas/canvas.html`), rewritten every
+  round; only the committed `demo/canvas.html` showcase travels with the
+  repo.
 - **Compact marks, not shape dumps.** Full tldraw shape JSON overflows the
   widget channel at ~600 chars; the compact format (type/xy/label/pts,
   semantic id prefixes) fits in fragments and stays parseable.
@@ -166,8 +182,8 @@ Two topologies — check which one you are on:
 
 ## License & third-party bits
 
-Code: MIT ([LICENSE](LICENSE)). The built canvas embeds
-[tldraw](https://github.com/tldraw/tldraw) (bundling permitted with
-license attached — see [NOTICE](NOTICE.md)); assets are fetched at build
-time, never committed. Anton font: OFL 1.1.
-
+Code: MIT ([LICENSE](LICENSE)). `demo/canvas.html` bundles
+[tldraw](https://github.com/tldraw/tldraw) (bundling permitted with the
+license attached — a verbatim copy ships in
+[licenses/](licenses/tldraw-LICENSE.md), see [NOTICE](NOTICE.md)).
+Anton font: OFL 1.1.

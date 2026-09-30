@@ -2,28 +2,23 @@
 
 ## Bundled third-party assets
 
-This repository itself contains **no third-party runtime code or binary
-assets**. The canvas engine build (`canvas-template/`) pulls the following
-open packages from npm at build time:
+This repository ships a pre-built canvas artifact (`demo/canvas.html`)
+that bundles the following open packages:
 
 - [`tldraw`](https://github.com/tldraw/tldraw) v3 — UI components and canvas
   engine. The `tldraw` package is **not** OSI open source; it is licensed
   under the [tldraw license](https://github.com/tldraw/tldraw/blob/main/LICENSE.md)
   which permits bundling it as part of another application, provided that a
-  verbatim copy of the license accompanies any distribution. The built
-  `canvas.html` inlines tldraw's engine, fonts, icons and translations as
-  data: URLs — if you distribute a built canvas, include the tldraw license
-  alongside it (see `canvas-template/licenses/`).
+  verbatim copy of the license accompanies any distribution. A copy ships
+  in `licenses/tldraw-LICENSE.md` — keep it with any redistribution of the
+  demo artifact.
 - [`react`](https://github.com/facebook/react) / `react-dom` — MIT.
-- [`esbuild`](https://github.com/evanw/esbuild) — MIT.
 - [`lucide-static`](https://github.com/lucide-icons/lucide) — ISC.
+- Anton display font — SIL OFL 1.1.
 
-Static assets (16 fonts, 156-icon sprite, embed icons, translations) are
-downloaded from `cdn.tldraw.com` by `gen_assets.py` at build time and
-inlined as base64 data: URLs; the tldraw license is captured alongside
-to `canvas-template/licenses/tldraw-LICENSE.md` — which **is committed**,
-because the pre-built `demo/canvas.html` bundles tldraw code and the
-license terms require it to accompany any distribution of the bundle.
+The artifact inlines tldraw's engine, fonts, icons and translations as
+base64 data: URLs (that's what makes it zero-network). The "made with
+tldraw" watermark and all copyright notices are preserved untouched.
 
 ## Trademarks
 

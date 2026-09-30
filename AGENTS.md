@@ -36,23 +36,20 @@ Their goal: their own working canvas. Your job, in order:
    Ask them to confirm when the「画布」/ canvas entry appears in the
    sidebar. Do not claim the install is complete before this.
 
-3. **First board — three routes, pick by capability:**
-   - **Route A (recommended, zero build): copy the demo and swap its INIT
-     payload.** `canvas-template/demo/canvas.html` is a fully-built,
-     zero-network board. The content is one JSON segment:
-     `<script>window.__INITIAL__ = {"assets":[...],"shapes":[...]};</script>`
-     — replace that segment (regex-locatable) with your payload (image
-     assets as data URLs), write the result to
-     `$HERMES_HOME/canvas/canvas.html`. No Node, no CDN fetch, engine
-     guaranteed identical to the showcase. This is the fastest path for
-     an agent.
-   - **Route B (quick CDN shell):** call `canvas_write` with a JSON string
-     `{"assets":[],"shapes":[...]}` — it wraps a minimal esm.sh-powered
-     shell. Works, but needs network at view time.
-   - **Route C (full template build):** `canvas-template/` —
-     `npm install && python3 gen_assets.py && npm run bundle &&
-     python3 build_canvas.py` — for custom shells/locales or when the
-     tldraw version must be bumped. See `canvas-template/README.md`.
+3. **First board — copy the demo and swap its INIT payload.**
+   `demo/canvas.html` is a fully-built, zero-network board; there is no
+   build step in this repo — the artifact IS the template. The content is
+   one JSON segment:
+   `<script>window.__INITIAL__ = {"assets":[...],"shapes":[...]};</script>`
+   — replace that segment (regex-locatable, single occurrence) with your
+   payload (image assets as data URLs; WebP ≤640 px, see
+   docs/PROTOCOL.md), write the result to
+   `$HERMES_HOME/canvas/canvas.html`. No Node, no CDN fetch, engine
+   guaranteed identical to the showcase. The `canvas_write` tool accepts
+   the edited full HTML; a bare JSON payload also works but wraps a
+   minimal esm.sh shell (needs network at view time — prefer the demo
+   route). Shell chrome & button labels are plain text in the same file —
+   `sed` them for localization if the user isn't Chinese-speaking.
    Then tell the user to hit **Refresh** in the canvas page.
 
 ## When annotations arrive (CANVAS-V1-C)
@@ -66,13 +63,14 @@ the structure.
 ## Hard rules
 
 - **Localize before first build if your user isn't Chinese-speaking.**
-  The stock shell (buttons, status lines, hints) is Chinese; strings sit
-  in plain text in `canvas-template/shell.html` + `entry.jsx`, tldraw
-  locale in `entry.jsx` (`locale: 'zh-cn'` → user's locale, add it to
-  `gen_assets.py` TRANSLATIONS too). See canvas-template/README.md →
-  Customizing → Language.
-- Never hand-edit a built `canvas.html` — regenerate it (init.json →
-  build → overwrite). It is derived state.
+  The stock shell (buttons, status lines, hints) is Chinese — but it's
+  plain text inside `demo/canvas.html` itself: `sed` the labels, and
+  change the literal `locale:"zh-cn"` in the `updateUserPreferences`
+  calls to the user's locale (en translation is already inlined; other
+  locales are out of scope for this repo).
+- Editing `demo/canvas.html` is the supported workflow (INIT swap, sed
+  the chrome) — but the engine sections (the giant minified script/CSS
+  blocks) are off-limits: don't regex them, don't reformat them.
 - The **live** board (`$HERMES_HOME/canvas/canvas.html`) is server-local
   user state — never commit it. The only canvas.html in git is the
   committed demo showcase; if the user wants a fresher showcase,
