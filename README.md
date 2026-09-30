@@ -54,6 +54,12 @@ The canvas page appears in the Desktop sidebar (🎨 / 布局 icon). First
 board: ask your agent to use the `canvas_write` tool, or build one with
 the template:
 
+> **No-CLI path:** just send this repo's URL to your Hermes agent and say
+> "set up my canvas" — `AGENTS.md` in the repo root tells it the full
+> flow (server install, the `hermes://` link to give you, first-board
+> build). The one thing it cannot do for you is clicking that Desktop
+> install dialog.
+
 ```bash
 git clone https://github.com/Hopers/hermes-canvas-plugin
 cd hermes-canvas-plugin/canvas-template

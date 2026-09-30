@@ -35,6 +35,10 @@ hermes plugins install Hopers/hermes-canvas-plugin --enable
 
 侧栏出现「画布」页。第一块画板：让 agent 调 `canvas_write` 工具，或用模板自建：
 
+> **免 CLI 路线：** 直接把本仓库链接发给你的 Hermes agent，说「帮我搭无限画布」——
+> 仓库根目录的 `AGENTS.md` 写明了完整流程（服务器安装、该给你的 `hermes://`
+> 安装链接、首板构建）。唯一代劳不了的：Desktop 安装确认框得你亲手点。
+
 ```bash
 git clone https://github.com/Hopers/hermes-canvas-plugin
 cd hermes-canvas-plugin/canvas-template
