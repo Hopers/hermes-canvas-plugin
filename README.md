@@ -18,6 +18,10 @@ loop repeats.
         └───────────── agent rebuilds board from marks ◄──────────────┘
 ```
 
+*Same loop whether Desktop connects to a local gateway or a remote one —
+the arrows are API calls (`ctx.rest`, `prompt.submit`) riding whatever
+connection Desktop already has to its Hermes server.*
+
 **Why single-file?** The canvas renders inside sandboxed iframes (chat
 widget, plugin page) where external fetches are blocked — and it keeps
 working fully offline, forever, on any host you copy it to.
