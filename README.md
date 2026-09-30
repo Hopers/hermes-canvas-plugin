@@ -143,4 +143,3 @@ Code: MIT ([LICENSE](LICENSE)). The built canvas embeds
 license attached — see [NOTICE](NOTICE.md)); assets are fetched at build
 time, never committed. Anton font: OFL 1.1.
 
-中文说明见 [README.zh-CN.md](README.zh-CN.md)。
