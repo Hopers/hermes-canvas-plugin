@@ -20,7 +20,10 @@ open packages from npm at build time:
 
 Static assets (16 fonts, 156-icon sprite, embed icons, translations) are
 downloaded from `cdn.tldraw.com` by `gen_assets.py` at build time and
-inlined as base64 data: URLs. They are never committed to this repository.
+inlined as base64 data: URLs; the tldraw license is captured alongside
+to `canvas-template/licenses/tldraw-LICENSE.md` — which **is committed**,
+because the pre-built `demo/canvas.html` bundles tldraw code and the
+license terms require it to accompany any distribution of the bundle.
 
 ## Trademarks
 
