@@ -58,7 +58,8 @@ the template:
 git clone https://github.com/Hopers/hermes-canvas-plugin
 cd hermes-canvas-plugin/canvas-template
 npm install && python3 gen_assets.py && npm run bundle
-python3 build_canvas.py init.json        # → $HERMES_HOME/canvas/canvas.html
+python3 build_canvas.py    # init optional: init.json → init.example.json → empty
+                             # → $HERMES_HOME/canvas/canvas.html
 ```
 
 Hit **Refresh** in the canvas page. Loop:

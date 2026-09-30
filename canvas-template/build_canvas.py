@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Assemble the self-contained canvas.html (local engine, zero network).
 
-Usage: build_canvas.py <init.json> [output.html]
+Usage: build_canvas.py [init.json] [output.html]
 
-Reads shell.html / canvas-bundle.js / tldraw.css / entry.jsx from this
-directory and injects the INIT payload, writing the final canvas. Default
-output: $HERMES_HOME/canvas/canvas.html (~/hermes-canvas.html if HERMES_HOME
+Both arguments optional. init.json falls back to init.example.json
+(committed starter board), then to an empty board. Default output:
+$HERMES_HOME/canvas/canvas.html (~/hermes-canvas.html if HERMES_HOME
 is unset — for trying the template out anywhere).
 
 Steps before this (see canvas-template/README.md):
@@ -26,10 +26,24 @@ BUILD = Path(__file__).parent
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        sys.exit("usage: build_canvas.py <init.json> [output.html]")
+    # both args optional: init defaults to init.json → init.example.json → empty;
+    # output defaults to $HERMES_HOME/canvas/canvas.html
+    init_path: Path | None = None
+    if len(sys.argv) > 1:
+        init_path = Path(sys.argv[1])
+    else:
+        cand = BUILD / "init.json"
+        if cand.exists():
+            init_path = cand
+    if init_path and not init_path.exists():
+        example = BUILD / "init.example.json"
+        if example.exists():
+            print(f"note: {init_path} not found — using init.example.json (starter board)")
+            init_path = example
+    if init_path is None:
+        print("note: no init file — building an empty board")
+    init = json.loads(init_path.read_text(encoding="utf-8")) if init_path else {"assets": [], "shapes": []}
 
-    init_path = Path(sys.argv[1])
     if len(sys.argv) > 2:
         out_path = Path(sys.argv[2])
     elif os.environ.get("HERMES_HOME"):
@@ -45,7 +59,6 @@ def main() -> None:
     if not css_path.exists():
         sys.exit(f"tldraw.css not found at {css_path} — run `npm install` first")
     css = css_path.read_text(encoding="utf-8")
-    init = json.loads(init_path.read_text(encoding="utf-8"))
 
     # optional display font (editorial shell) — drop-in, see design-assets/
     anton = BUILD / "design-assets" / "anton.b64"

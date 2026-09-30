@@ -1,0 +1,38 @@
+{
+  "assets": [
+    {
+      "id": "asset:demo1",
+      "typeName": "asset",
+      "type": "image",
+      "props": {
+        "name": "demo.webp",
+        "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNDAwIj48cmVjdCB3aWR0aD0iNjQwIiBoZWlnaHQ9IjQwMCIgZmlsbD0iIzFlMWUxZSIvPjx0ZXh0IHg9IjMyMCIgeT0iMjAwIiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjI4IiBmaWxsPSIjOGI4YjhlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5kcm9wIGltYWdlIGhlcmU8L3RleHQ+PC9zdmc+",
+        "w": 640,
+        "h": 400,
+        "mimeType": "image/svg+xml",
+        "isAnimated": false
+      },
+      "meta": {}
+    }
+  ],
+  "shapes": [
+    {
+      "id": "shape:demo1",
+      "type": "image",
+      "x": 60,
+      "y": 50,
+      "props": { "assetId": "asset:demo1", "w": 640, "h": 400 }
+    },
+    {
+      "id": "shape:hint1",
+      "type": "text",
+      "x": 80,
+      "y": 480,
+      "props": {
+        "richText": { "type": "doc", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "Replace this board: edit init.json, rebuild, canvas_write — or just hand the HTML to the agent." } ] } ] },
+        "color": "black",
+        "size": "s"
+      }
+    }
+  ]
+}

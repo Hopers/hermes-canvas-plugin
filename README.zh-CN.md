@@ -39,7 +39,8 @@ hermes plugins install Hopers/hermes-canvas-plugin --enable
 git clone https://github.com/Hopers/hermes-canvas-plugin
 cd hermes-canvas-plugin/canvas-template
 npm install && python3 gen_assets.py && npm run bundle
-python3 build_canvas.py init.json        # → $HERMES_HOME/canvas/canvas.html
+python3 build_canvas.py    # init 可选：init.json → init.example.json → 空板
+                             # → $HERMES_HOME/canvas/canvas.html
 ```
 
 画布页点「刷新」。循环：
