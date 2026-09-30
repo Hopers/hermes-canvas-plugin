@@ -75,10 +75,15 @@ board: ask your agent to use the `canvas_write` tool, or build one with
 the template:
 
 > **No-CLI path:** just send this repo's URL to your Hermes agent and say
-> "set up my canvas" — `AGENTS.md` in the repo root tells it the full
-> flow (server install, the `hermes://` link to give you, first-board
-> build). The one thing it cannot do for you is clicking that Desktop
-> install dialog.
+> "set up my canvas" — `AGENTS.md` in the repo root tells it the whole
+> flow, including the `hermes://` link to hand you. The one thing it
+> cannot do is clicking that Desktop install dialog.
+>
+> **Fastest first board (no build at all):** the committed
+> `canvas-template/demo/canvas.html` is a complete zero-network board —
+> swap its `window.__INITIAL__` JSON segment for your content and it's
+> ready (AGENTS.md documents this as Route A). The template build below
+> is only needed for custom shells, locales, or version bumps.
 
 ```bash
 git clone https://github.com/Hopers/hermes-canvas-plugin

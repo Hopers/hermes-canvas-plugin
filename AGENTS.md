@@ -36,15 +36,23 @@ Their goal: their own working canvas. Your job, in order:
    Ask them to confirm when the「画布」/ canvas entry appears in the
    sidebar. Do not claim the install is complete before this.
 
-3. **First board — pick ONE path:**
-   - **No Node.js on the server?** Quick path: call `canvas_write` with a
-     JSON string `{"assets":[],"shapes":[...]}` — it wraps a minimal
-     CDN-powered shell (esm.sh). Works, but needs network at view time.
-   - **Full offline (recommended):** build in `canvas-template/` —
+3. **First board — three routes, pick by capability:**
+   - **Route A (recommended, zero build): copy the demo and swap its INIT
+     payload.** `canvas-template/demo/canvas.html` is a fully-built,
+     zero-network board. The content is one JSON segment:
+     `<script>window.__INITIAL__ = {"assets":[...],"shapes":[...]};</script>`
+     — replace that segment (regex-locatable) with your payload (image
+     assets as data URLs), write the result to
+     `$HERMES_HOME/canvas/canvas.html`. No Node, no CDN fetch, engine
+     guaranteed identical to the showcase. This is the fastest path for
+     an agent.
+   - **Route B (quick CDN shell):** call `canvas_write` with a JSON string
+     `{"assets":[],"shapes":[...]}` — it wraps a minimal esm.sh-powered
+     shell. Works, but needs network at view time.
+   - **Route C (full template build):** `canvas-template/` —
      `npm install && python3 gen_assets.py && npm run bundle &&
-     python3 build_canvas.py` — output lands exactly where the backend
-     serves ($HERMES_HOME/canvas/canvas.html). See
-     `canvas-template/README.md`.
+     python3 build_canvas.py` — for custom shells/locales or when the
+     tldraw version must be bumped. See `canvas-template/README.md`.
    Then tell the user to hit **Refresh** in the canvas page.
 
 ## When annotations arrive (CANVAS-V1-C)
