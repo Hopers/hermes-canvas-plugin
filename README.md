@@ -1,17 +1,122 @@
-# hermes-canvas-plugin
+# hermes-canvas — infinite canvas for Hermes Desktop
 
-Hermes Desktop 无限画布插件（私人用途）。
+An open, agent-driven infinite canvas that plugs into
+[Hermes Agent](https://github.com/NousResearch/hermes-agent). The agent
+builds image boards as a **single self-contained HTML file** (tldraw engine
+fully inlined, zero runtime network), serves it over the plugin API, and
+you annotate on it — circle things, draw arrows, drop structured
+"move this here" / "generate this" marks — then send it all back into the
+chat session. The agent reads the marks, edits/generates images, and the
+loop repeats.
 
-## 结构（unified package v0.5）
-- `plugin.yaml` + `__init__.py` — agent half：register() no-op，只为携带后端
-- `dashboard/manifest.json` + `dashboard/plugin_api.py` — 后端路由 `/api/plugins/hermes-canvas/canvas`，读服务器 `/root/.hermes/canvas/canvas.html` 返回
-- `desktop/plugin.js` — Desktop half：侧栏「画布」整页，ctx.rest 拉取（走 Desktop↔服务器现有连接，零公网暴露、无 CDN 兜底），圈注经 postMessage → prompt.submit 直达当前会话
+```
+┌─────────────┐  canvas.html   ┌──────────────┐  annotations   ┌─────────┐
+│ agent side  │ ─────────────► │ Desktop page │ ─────────────► │ session │
+│ canvas_write│  (ctx.rest)    │ (sidebar)    │ (prompt.submit)│         │
+└─────────────┘                └──────────────┘                └─────────┘
+        ▲                                                             │
+        └───────────── agent rebuilds board from marks ◄──────────────┘
+```
 
-画布内容不进本仓库——只存在于服务器 `/root/.hermes/canvas/`。
+**Why single-file?** The canvas renders inside sandboxed iframes (chat
+widget, plugin page) where external fetches are blocked — and it keeps
+working fully offline, forever, on any host you copy it to.
 
-## 更新
-- 改图：agent 重写服务器 canvas.html，插件里点「🔄 刷新画布」即得（无需重装插件）
-- 改插件代码：push 本仓库后，Desktop 重开 `hermes://plugin/install?repo=Hopers/hermes-canvas-plugin&force=1`（agent + desktop 都勾）；服务器侧同步 `hermes plugins update hermes-canvas`
+## Features
 
-## 安装
-Desktop 里打开 `hermes://plugin/install?repo=Hopers/hermes-canvas-plugin`，确认对话框勾选 agent + desktop 两个组件。
+- **Zero-network tldraw** — engine, 16 fonts, icon sprite, translations
+  all inlined as data: URLs; verified zero external requests
+- **Annotation round-trip** — compact `CANVAS-V1-C` JSON protocol with
+  structured marks (move-pairs, AI-slots) on top of free-form drawing
+  ([protocol spec](docs/PROTOCOL.md))
+- **Two hosts, one file** — chat widget (`::preview`) and Desktop sidebar
+  page, auto-detected send channels
+- **Agent tool included** — `canvas_write` writes the board; your agent
+  can push new content without touching plugin code
+- **Own the template** — `canvas-template/` is a standalone build pipeline
+  (npm + esbuild + one Python script); retheme the shell, swap fonts,
+  fork the whole look
+
+## Install
+
+Requirements: a Hermes server (agent half installs there) + Hermes Desktop.
+
+```bash
+# on the Hermes server
+hermes plugins install Hopers/hermes-canvas-plugin --enable
+```
+
+Or in Desktop: open
+`hermes://plugin/install?repo=Hopers/hermes-canvas-plugin` and tick both
+the **agent** and **desktop** components in the confirm dialog.
+
+The canvas page appears in the Desktop sidebar (🎨 / 布局 icon). First
+board: ask your agent to use the `canvas_write` tool, or build one with
+the template:
+
+```bash
+git clone https://github.com/Hopers/hermes-canvas-plugin
+cd hermes-canvas-plugin/canvas-template
+npm install && python3 gen_assets.py && npm run bundle
+python3 build_canvas.py init.json        # → $HERMES_HOME/canvas/canvas.html
+```
+
+Hit **Refresh** in the canvas page. Loop:
+
+1. Agent puts images on the board (WebP data URLs, ≤640 px)
+2. You circle / arrow / text / drop move-pairs or AI-slots
+3. **回传画布** — marks land in the session as `CANVAS-V1-C` JSON
+4. Agent parses ([protocol](docs/PROTOCOL.md)), edits or generates, board
+   updates; hit Refresh
+
+## Repo layout
+
+```
+├── plugin.yaml            # unified package manifest (agent + desktop halves)
+├── __init__.py            # agent half: canvas_write tool
+├── dashboard/
+│   ├── manifest.json      # backend route mount
+│   └── plugin_api.py      # GET /api/plugins/hermes-canvas/canvas → canvas.html
+├── desktop/plugin.js      # Desktop half: sidebar page, iframe + prompt.submit relay
+├── canvas-template/       # standalone build pipeline for canvas.html
+│   ├── shell.html         #   page chrome (editorial style — swap freely)
+│   ├── entry.jsx          #   engine wiring + annotation protocol
+│   ├── gen_assets.py      #   CDN → data-URL asset module (license capture too)
+│   ├── build_canvas.py    #   assembler (shell + CSS + bundle + init.json)
+│   └── design-assets/     #   optional Anton display font (OFL)
+└── docs/
+    ├── PROTOCOL.md        # CANVAS-V1-C wire format
+    └── TLDRAW-NOTES.md    # tldraw v3 zero-network inlining field notes
+```
+
+## Updating
+
+- **New board content** — agent rewrites `canvas.html` (server side);
+  hit Refresh in the plugin. No reinstall.
+- **New plugin code** — push this repo; server: `hermes plugins update
+  hermes-canvas`; Desktop: reopen
+  `hermes://plugin/install?repo=Hopers/hermes-canvas-plugin&force=1`
+  (tick both halves).
+
+## Design decisions worth stealing
+
+- **ctx.rest is the only data path.** The Desktop fetches the canvas over
+  its existing authenticated connection to the Hermes server — no CDN, no
+  public exposure, no stale cache. The day this channel fails, the plugin
+  fails loudly instead of degrading to a stale fallback (deliberate).
+- **Canvas content never enters git.** The board is server-local state
+  (`$HERMES_HOME/canvas/canvas.html`); the repo carries only the machinery.
+- **Compact marks, not shape dumps.** Full tldraw shape JSON overflows the
+  widget channel at ~600 chars; the compact format (type/xy/label/pts,
+  semantic id prefixes) fits in fragments and stays parseable.
+- **Fail loudly over silent fallbacks.** A canvas that silently shows last
+  week's board is worse than an error banner you can act on.
+
+## License & third-party bits
+
+Code: MIT ([LICENSE](LICENSE)). The built canvas embeds
+[tldraw](https://github.com/tldraw/tldraw) (bundling permitted with
+license attached — see [NOTICE](NOTICE.md)); assets are fetched at build
+time, never committed. Anton font: OFL 1.1.
+
+中文说明见 [README.zh-CN.md](README.zh-CN.md)。

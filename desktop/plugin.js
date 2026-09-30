@@ -35,7 +35,7 @@ function CanvasPage({ ctx }) {
       throw new Error('bad payload')
     } catch (e) {
       setState('error')
-      setErr(((e && e.message) || String(e)) + ' — 服务器通道不可用（agent 半边未启用/后端未挂载），点刷新重试或直接找 Hermes 修')
+      setErr(((e && e.message) || String(e)) + ' — 服务器通道不可用（agent 半边未启用 / canvas.html 尚未生成），点刷新重试')
     }
   }
 

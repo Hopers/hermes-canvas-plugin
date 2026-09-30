@@ -6,6 +6,7 @@ always the version the agent just wrote.
 """
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 
@@ -14,19 +15,27 @@ from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
-CANVAS_PATH = Path("/root/.hermes/canvas/canvas.html")
+
+def _canvas_path() -> Path:
+    """Profile-safe canvas location: $HERMES_HOME/canvas/canvas.html."""
+    home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
+    return home / "canvas" / "canvas.html"
 
 
 @router.get("/canvas")
 async def get_canvas() -> JSONResponse:
     """Return the current canvas HTML plus a mtime stamp for cache busting."""
+    path = _canvas_path()
     try:
-        html = CANVAS_PATH.read_text(encoding="utf-8")
+        html = path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        return JSONResponse({"ok": False, "error": "canvas.html not found on server"}, status_code=404)
+        return JSONResponse(
+            {"ok": False, "error": "canvas.html not found on server — ask the agent to build one first (canvas_write / canvas-template)"},
+            status_code=404,
+        )
     return JSONResponse({
         "ok": True,
-        "mtime": CANVAS_PATH.stat().st_mtime,
+        "mtime": path.stat().st_mtime,
         "size": len(html.encode("utf-8")),
         "html": html,
     })
@@ -34,9 +43,11 @@ async def get_canvas() -> JSONResponse:
 
 @router.get("/status")
 async def status() -> dict:
+    path = _canvas_path()
     return {
         "ok": True,
-        "canvas_exists": CANVAS_PATH.exists(),
-        "canvas_mtime": CANVAS_PATH.stat().st_mtime if CANVAS_PATH.exists() else None,
+        "canvas_exists": path.exists(),
+        "canvas_path": str(path),
+        "canvas_mtime": path.stat().st_mtime if path.exists() else None,
         "served_at": time.time(),
     }

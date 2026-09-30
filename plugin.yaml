@@ -1,5 +1,9 @@
 name: hermes-canvas
-version: 0.2.0
-description: "Hermes 无限画布 — desktop 页面 + agent 侧画布内容伺服（/root/.hermes/canvas/canvas.html）"
+version: 1.0.0
+description: "Infinite canvas for Hermes Desktop — agent-served tldraw board with annotation round-trips (canvas_write tool + /canvas REST route + sidebar page)"
+author: Hopers
 pip_dependencies: []
 requires_env: []
+provides_tools:
+  - canvas_write
+provides_hooks: []

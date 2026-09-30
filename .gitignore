@@ -1,0 +1,11 @@
+node_modules/
+__pycache__/
+*.pyc
+
+# Build outputs — canvas.html lives on the Hermes server only, never in git
+canvas-template/canvas-bundle.js
+canvas-template/asset-urls.generated.mjs
+canvas-template/assets/
+canvas-template/licenses/
+canvas-template/init.json
+*.log
