@@ -62,6 +62,14 @@ Keep each image under ~150 KB inline (a two-image board lands around
 
 ## Customizing
 
+- **Language (important):** the stock shell ships in **Chinese** — all
+  button labels, status lines and hints. If your user speaks another
+  language, localize before the first build: the strings live in plain
+  text in `shell.html` (hero, nav, buttons) and `entry.jsx` (status
+  messages); the tldraw UI itself is locale-driven — change
+  `locale: 'zh-cn'` in `entry.jsx` (and add your locale to
+  `gen_assets.py` `TRANSLATIONS`). No i18n framework on purpose —
+  sed-and-rebuild is the intended workflow for an agent.
 - **Page chrome**: rewrite `shell.html` (the editorial look — hero, index
   row, status line, tool buttons — is just CSS around `#canvas`). Keep the
   `<script src="./entry.jsx"></script>` marker; `build_canvas.py` replaces

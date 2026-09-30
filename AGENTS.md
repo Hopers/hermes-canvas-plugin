@@ -57,6 +57,12 @@ the structure.
 
 ## Hard rules
 
+- **Localize before first build if your user isn't Chinese-speaking.**
+  The stock shell (buttons, status lines, hints) is Chinese; strings sit
+  in plain text in `canvas-template/shell.html` + `entry.jsx`, tldraw
+  locale in `entry.jsx` (`locale: 'zh-cn'` → user's locale, add it to
+  `gen_assets.py` TRANSLATIONS too). See canvas-template/README.md →
+  Customizing → Language.
 - Never hand-edit a built `canvas.html` — regenerate it (init.json →
   build → overwrite). It is derived state.
 - Images go on the board as data URLs only: WebP, ≤640 px wide,

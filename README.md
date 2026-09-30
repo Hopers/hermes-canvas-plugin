@@ -70,7 +70,7 @@ hermes://plugin/install?repo=Hopers/hermes-canvas-plugin
 #   the dialog anyway; the desktop half is a local clone on this machine
 ```
 
-The canvas page appears in the Desktop sidebar (🎨 / 布局 icon). First
+The canvas page appears in the Desktop sidebar (the canvas / layout icon). First
 board: ask your agent to use the `canvas_write` tool, or build one with
 the template:
 
@@ -92,7 +92,7 @@ Hit **Refresh** in the canvas page. Loop:
 
 1. Agent puts images on the board (WebP data URLs, ≤640 px)
 2. You circle / arrow / text / drop move-pairs or AI-slots
-3. **回传画布** — marks land in the session as `CANVAS-V1-C` JSON
+3. Hit **回传画布** ("send back") — marks land in the session as `CANVAS-V1-C` JSON
 4. Agent parses ([protocol](docs/PROTOCOL.md)), edits or generates, board
    updates; hit Refresh
 
