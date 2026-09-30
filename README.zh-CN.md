@@ -76,8 +76,27 @@ python3 build_canvas.py    # init 可选：init.json → init.example.json → �
 
 ## 更新
 
-- **画布内容更新**——agent 重写服务器上 canvas.html，插件里点刷新即可，无需重装
-- **插件代码更新**——push 本仓库后：服务器 `hermes plugins update hermes-canvas`；Desktop 重开 `hermes://plugin/install?repo=Hopers/hermes-canvas-plugin&force=1`（两半都勾）
+分两种拓扑，先对号入座：
+
+- **单机**（Desktop App 与 agent 同机——最常见情况）：一条命令全搞定：
+
+  ```bash
+  hermes plugins update hermes-canvas
+  ```
+
+  CLI 刷新 `plugins/hermes-canvas/`，Desktop App 会自动把 `desktop/`
+  半边重新拷进自己的插件根目录（没生效就 Capabilities → Plugins →
+  **Rescan**）。`hermes://…&force=1` 深链也能用，但此场景不需要。
+
+- **分体拓扑**（agent 在服务器、Desktop 在另一台机器）：
+  - 服务器：`hermes plugins update hermes-canvas`
+  - Desktop 机器：重开
+    `hermes://plugin/install?repo=Hopers/hermes-canvas-plugin&force=1`——
+    desktop 半边在那台机器上是独立克隆；**在 Desktop 机器上跑 CLI
+    update 碰不到它**。
+
+- **只改画布内容**——agent 重写服务器 canvas.html，插件里点刷新即可。
+  无需重装、无需 update、什么都不用。
 
 ## 值得借鉴的设计决策
 

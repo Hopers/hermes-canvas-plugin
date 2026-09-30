@@ -8,6 +8,12 @@ follow it instead of re-deriving the flow from the README.
 
 Their goal: their own working canvas. Your job, in order:
 
+0. **Check the topology first.** Is the Hermes server (the machine you run
+   on) the same box as the user's Desktop app? If yes, everything below
+   simplifies: `hermes plugins update hermes-canvas` alone updates both
+   halves after any repo push — no install link needed. If Desktop runs
+   elsewhere (split topology), follow the two-half flow below.
+
 1. **Server half (you can do this yourself):**
    ```bash
    hermes plugins install Hopers/hermes-canvas-plugin --enable
@@ -16,7 +22,7 @@ Their goal: their own working canvas. Your job, in order:
    target is the machine you run on, this registers the `canvas_write`
    tool and mounts `GET /api/plugins/hermes-canvas/canvas`.
 
-2. **Desktop half (the user must do this — you cannot):**
+2. **Desktop half (user must do this — you cannot):**
    Tell the user to open, in Hermes Desktop:
    ```
    hermes://plugin/install?repo=Hopers/hermes-canvas-plugin

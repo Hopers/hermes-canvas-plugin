@@ -98,12 +98,29 @@ Hit **Refresh** in the canvas page. Loop:
 
 ## Updating
 
-- **New board content** — agent rewrites `canvas.html` (server side);
-  hit Refresh in the plugin. No reinstall.
-- **New plugin code** — push this repo; server: `hermes plugins update
-  hermes-canvas`; Desktop: reopen
-  `hermes://plugin/install?repo=Hopers/hermes-canvas-plugin&force=1`
-  (tick both halves).
+Two topologies — check which one you are on:
+
+- **Single machine** (Desktop app and agent on the same box — the common
+  case): one command does it all:
+
+  ```bash
+  hermes plugins update hermes-canvas
+  ```
+
+  The CLI refreshes `plugins/hermes-canvas/`, and the Desktop app re-copies
+  the `desktop/` half into its plugin root (Capabilities → Plugins →
+  **Rescan** if it hasn't picked it up). The `hermes://…&force=1` link also
+  works but is not required here.
+
+- **Split topology** (agent on a server, Desktop on another machine):
+  - server: `hermes plugins update hermes-canvas`
+  - Desktop machine: reopen
+    `hermes://plugin/install?repo=Hopers/hermes-canvas-plugin&force=1` —
+    the desktop half is a separate local clone there; running the CLI
+    update *on the Desktop machine* does **not** touch it.
+
+- **New board content only** — the agent rewrites canvas.html (server
+  side); hit Refresh in the plugin. No reinstall, no update, nothing.
 
 ## Design decisions worth stealing
 
