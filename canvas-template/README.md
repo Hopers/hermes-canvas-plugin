@@ -14,6 +14,14 @@ init.json ──► build_canvas.py ──► canvas.html (self-contained, ~3.8 
    design-assets/┘
 ```
 
+## Try it without building anything
+
+`demo/canvas.html` is a **pre-built showcase board** (3.8 MB, fully
+self-contained, zero network) — open it in any browser, or drop it into
+your canvas page, and play with the editorial shell + annotation tools
+right away. The demo carries a two-cat sample board; your real boards
+are built from init.json via the pipeline below.
+
 ## Build
 
 ```bash

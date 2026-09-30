@@ -140,7 +140,8 @@ def main() -> None:
         "}",
     ]
     out = BUILD / "asset-urls.generated.mjs"
-    out.write_text("\n".join(parts) + "\n", encoding="utf-8")
+    text = "\n".join(parts) + "\n"
+    out.write_text(text, encoding="utf-8")
     print(
         f"wrote {out.name} ({out.stat().st_size // 1024} KB): "
         f"{len(fonts)} fonts, {len(icons_list)} icons, {len(embeds)} embedIcons, {len(trans)} translations"

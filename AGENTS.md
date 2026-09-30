@@ -65,6 +65,10 @@ the structure.
   Customizing → Language.
 - Never hand-edit a built `canvas.html` — regenerate it (init.json →
   build → overwrite). It is derived state.
+- The **live** board (`$HERMES_HOME/canvas/canvas.html`) is server-local
+  user state — never commit it. The only canvas.html in git is the
+  committed demo showcase; if the user wants a fresher showcase,
+  build a **sample** board and replace the demo copy explicitly.
 - Images go on the board as data URLs only: WebP, ≤640 px wide,
   quality ~80 (`ffmpeg -i in.png -vf "scale='min(640,iw)':-2" -quality
   80 out.webp`). PNG base64 bloats the board.

@@ -148,8 +148,11 @@ Two topologies — check which one you are on:
   its existing authenticated connection to the Hermes server — no CDN, no
   public exposure, no stale cache. The day this channel fails, the plugin
   fails loudly instead of degrading to a stale fallback (deliberate).
-- **Canvas content never enters git.** The board is server-local state
-  (`$HERMES_HOME/canvas/canvas.html`); the repo carries only the machinery.
+- **Canvas content never enters git — the *live* board.** Your working
+  canvas is server-local state (`$HERMES_HOME/canvas/canvas.html`),
+  rewritten by the agent on every round; only the committed
+  `canvas-template/demo/canvas.html` showcase (a sample board) travels
+  with the repo.
 - **Compact marks, not shape dumps.** Full tldraw shape JSON overflows the
   widget channel at ~600 chars; the compact format (type/xy/label/pts,
   semantic id prefixes) fits in fragments and stays parseable.
