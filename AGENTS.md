@@ -71,6 +71,12 @@ the structure.
 - Editing `demo/canvas.html` is the supported workflow (INIT swap, sed
   the chrome) — but the engine sections (the giant minified script/CSS
   blocks) are off-limits: don't regex them, don't reformat them.
+  **Anchor warning**: injecting content by replacing the *first*
+  `</body>` in the file is NOT safe — the minified engine strings
+  contain that literal, and you'd slice the script mid-token (engine
+  dies silently at INIT). Only two safe seams exist: the `__INITIAL__`
+  segment (regex, unique) and `<script>window.__CANVAS_FULL__ =
+  true;</script>` (unique) — verify `count == 1` before any replace.
 - The **live** board (`$HERMES_HOME/canvas/canvas.html`) is server-local
   user state — never commit it. The only canvas.html in git is the
   committed demo showcase; if the user wants a fresher showcase,

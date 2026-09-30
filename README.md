@@ -95,7 +95,10 @@ one JSON block:
 ```
 
 Locate it (regex `<script>window\.__INITIAL__ = .*?;</script>`, single
-occurrence), replace with your payload, save. Image assets are data URLs:
+occurrence), replace with your payload, save. (When injecting anything
+else into the file, use the `<script>window.__CANVAS_FULL__ =
+true;</script>` line as the second safe anchor — never the first
+`</body>`, which also occurs inside the engine strings.) Image assets are data URLs:
 
 ```bash
 ffmpeg -i in.png -vf "scale='min(640,iw)':-2" -quality 80 out.webp
