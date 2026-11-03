@@ -138,7 +138,7 @@ downscaled or re-encoded on the way in.
 The send-back payload then carries a filename instead of pixels:
 
 ```json
-{"id":"shape:…","mime":"image/png","asset":"paste-20261103-…png","naturalW":795,"naturalH":475}
+{"id":"shape:…","mime":"image/png","asset":"paste-20261103-…png","naturalW":1920,"naturalH":1080}
 ```
 
 so the agent opens the original file — full resolution, the same bytes you

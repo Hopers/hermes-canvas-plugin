@@ -63,8 +63,8 @@ channel**. Each entry:
   "id": "shape:abc123",                       // the image shape id
   "x": 192, "y": 413, "w": 577, "h": 325,     // placement on the board, px
   "mime": "image/png",
-  "asset": "paste-20261103132605-2hl3hd.png", // file name under $HERMES_HOME/canvas/assets/
-  "naturalW": 795, "naturalH": 475            // original pixel dimensions
+  "asset": "paste-20261103-a1b2c3.png",       // file name under $HERMES_HOME/canvas/assets/
+  "naturalW": 1920, "naturalH": 1080            // original pixel dimensions
 }
 ```
 
