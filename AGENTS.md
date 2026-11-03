@@ -81,9 +81,15 @@ the structure.
   user state — never commit it. The only canvas.html in git is the
   committed demo showcase; if the user wants a fresher showcase,
   build a **sample** board and replace the demo copy explicitly.
-- Images go on the board as data URLs only: WebP, ≤640 px wide,
-  quality ~80 (`ffmpeg -i in.png -vf "scale='min(640,iw)':-2" -quality
-  80 out.webp`). PNG base64 bloats the board.
+- Images the **agent** places go on the board as data URLs: WebP, ≤640 px
+  wide, quality ~80 (`ffmpeg -i in.png -vf "scale='min(640,iw)':-2"
+  -quality 80 out.webp`). PNG base64 bloats the board.
+- Images the **user pastes** (Ctrl+V) are a different path: the original
+  bytes are uploaded to `$HERMES_HOME/canvas/assets/` untouched and shown
+  from a local data URL; the send-back carries only `asset` (a filename).
+  Read that file when you need the original — it is full resolution. Never
+  downscale a pasted image and never assume the board's data URL is the
+  source.
 - Canvas content is server-local state; never commit boards to git.
 - After rewriting the board, always tell the user to hit Refresh — the
   plugin does not auto-reload.

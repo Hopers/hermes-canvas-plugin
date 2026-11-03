@@ -56,6 +56,9 @@ def canvas_write(html: str, check: bool = True) -> str:
         return json.dumps({"success": False, "error": "refusing to write: no <script> found (not a canvas document?)"})
 
     out_path.write_text(html_doc, encoding="utf-8")
+    # The board's saved state wins over __INITIAL__ on load, so a fresh write must drop it —
+    # otherwise the agent's new board is invisible behind the user's last session.
+    (out_dir / "state.json").unlink(missing_ok=True)
     return json.dumps({
         "success": True,
         "path": str(out_path),

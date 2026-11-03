@@ -12,6 +12,26 @@ function CanvasPage({ ctx }) {
   const [src, setSrc] = useState('')
   const [lastSent, setLastSent] = useState('')
   const frameRef = useRef(null)
+  const tokenRef = useRef('')
+
+  // The Webapp serves the canvas as its own document (GET /api/plugins/hermes-canvas/view).
+  // An iframe `src` gets that response's CSP; `srcdoc` would inherit the host page's — and the
+  // Webapp's page policy has no 'unsafe-inline', so every inline script in the canvas is blocked
+  // and the board sits on its boot line. Native Desktop has no such policy, so it keeps srcdoc.
+  const isBrowserHost = () => document.documentElement.dataset.hermesDesktopHost === 'browser'
+
+  const applySrc = (token) => {
+    if (!frameRef.current) return
+    const url = new URL('api/plugins/hermes-canvas/view', location.href)
+    url.searchParams.set('t', String(Date.now()))
+    // The frame is an opaque origin (sandbox="allow-scripts"), so it cannot ride the session
+    // cookie. This token is what lets it POST originals and save board state.
+    if (token) url.searchParams.set('token', token)
+    frameRef.current.removeAttribute('srcdoc')
+    frameRef.current.src = url.href
+    setSrc('SERVER · ' + new Date().toLocaleTimeString())
+    setState('ready')
+  }
 
   const applyHtml = (html) => {
     if (frameRef.current) {
@@ -25,6 +45,16 @@ function CanvasPage({ ctx }) {
     if (!ctx) return
     setState('loading')
     setErr('')
+    if (isBrowserHost()) {
+      try {
+        const minted = await ctx.rest('/token')
+        tokenRef.current = minted && minted.token ? minted.token : ''
+        applySrc(tokenRef.current)
+      } catch (e) {
+        applySrc('') // the route mints one itself; the frame still boots
+      }
+      return
+    }
     try {
       const data = await ctx.rest('/canvas')
       if (data && data.ok === true && typeof data.html === 'string' && data.html.length > 500) {
@@ -43,7 +73,71 @@ function CanvasPage({ ctx }) {
     void load()
     const onMsg = async (ev) => {
       const d = ev.data
-      if (!d || d.__hermesCanvas !== true || typeof d.text !== 'string') return
+      if (!d) return
+      // The canvas frame is an opaque origin and its own fetch has no session cookie, so the
+      // gateway's auth gate 401s it ("Failed to fetch" before any header is read). This page
+      // has the cookie — uploads and board state are proxied through here.
+      if (d.__hermesCanvasRpc === true) {
+        const reply = (body) => {
+          try {
+            ev.source && ev.source.postMessage({ __hermesCanvasRpcResult: true, id: d.id, ...body }, '*')
+          } catch (e) { /* 窗口已走 */ }
+        }
+        const q = (extra) => {
+          const parts = [`token=${encodeURIComponent(tokenRef.current || '')}`]
+          if (extra) parts.push(extra)
+          return parts.join('&')
+        }
+        try {
+          if (d.op === 'asset') {
+            const payload = d.payload || {}
+            if (!payload.file) throw new Error('没有收到图片数据')
+            const fd = new FormData()
+            fd.append('file', payload.file, payload.name || 'paste.png')
+            const r = await fetch(
+              `api/plugins/hermes-canvas/asset?${q('name=' + encodeURIComponent(payload.name || 'paste.png'))}`,
+              { method: 'POST', body: fd }
+            )
+            const j = await r.json().catch(() => null)
+            if (!r.ok) throw new Error((j && j.detail) || 'HTTP ' + r.status)
+            reply({ ok: true, data: j })
+            return
+          }
+          if (d.op === 'state-save') {
+            const r = await fetch(`api/plugins/hermes-canvas/state?${q()}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain' },
+              body: (d.payload && d.payload.json) || '{}',
+            })
+            const j = await r.json().catch(() => null)
+            if (!r.ok) throw new Error((j && j.detail) || 'HTTP ' + r.status)
+            reply({ ok: true, data: j })
+            return
+          }
+          if (d.op === 'state-load') {
+            const r = await fetch(`api/plugins/hermes-canvas/state?${q()}`)
+            const j = await r.json().catch(() => null)
+            if (!r.ok) throw new Error((j && j.detail) || 'HTTP ' + r.status)
+            reply({ ok: true, data: j })
+            return
+          }
+          if (d.op === 'asset-get') {
+            const name = (d.payload && d.payload.name) || ''
+            if (!name) throw new Error('没有文件名')
+            const r = await fetch(
+              `api/plugins/hermes-canvas/asset/${encodeURIComponent(name)}?${q()}`
+            )
+            if (!r.ok) throw new Error('HTTP ' + r.status)
+            reply({ ok: true, data: await r.blob() })
+            return
+          }
+          throw new Error('未知操作 ' + d.op)
+        } catch (e) {
+          reply({ ok: false, error: (e && e.message) || String(e) })
+        }
+        return
+      }
+      if (d.__hermesCanvas !== true || typeof d.text !== 'string') return
       const sid = host.state.focusedSessionId.get()
       if (!sid) {
         host.notify({ kind: 'error', message: '画布回传：当前没有聚焦的会话' })

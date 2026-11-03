@@ -32,8 +32,9 @@ concatenate, then `JSON.parse`.
 {
   "tag": "CANVAS-V1-C",
   "sentAt": "2026-09-30T01:23:45.000Z",
-  "imgs": 2,                       // image shapes on board (not serialized)
-  "marks": [ /* one entry per non-image shape */ ]
+  "imgs": 2,                       // image shapes on board
+  "marks": [ /* one entry per non-image shape */ ],
+  "images": [ /* one entry per image shape — by reference, see below */ ]
 }
 ```
 
@@ -52,8 +53,29 @@ concatenate, then `JSON.parse`.
 | `geo`,`dash` | `geo` shapes: `rectangle`/`ellipse`… and `dashed`/`solid`… |
 | `text` | `text` shapes: plain text extracted from Tiptap richText |
 
-Images are counted, not serialized — the agent already knows what it put
-on the board; the marks are *deltas on top of the current board*.
+### image entries — by reference, not by value
+
+Images are listed in `images[]`, **never as pixels over the message
+channel**. Each entry:
+
+```jsonc
+{
+  "id": "shape:abc123",                       // the image shape id
+  "x": 192, "y": 413, "w": 577, "h": 325,     // placement on the board, px
+  "mime": "image/png",
+  "asset": "paste-20261103132605-2hl3hd.png", // file name under $HERMES_HOME/canvas/assets/
+  "naturalW": 795, "naturalH": 475            // original pixel dimensions
+}
+```
+
+Read `$HERMES_HOME/canvas/assets/<asset>` for the untouched original — no
+downscaling, no re-encoding happened on the way in. That is the file to feed
+an image editor or a generation model.
+
+Boards with no upload backend (chat-widget host) fall back to inline `b64`
+thumbnails (640 px WebP); prefer `asset` whenever it is present. `imgs` is
+just the count, so `imgs > len(images)` means the human pasted something the
+agent did not place — look it up under `assets/`.
 
 ### id prefixes — semantic marks
 

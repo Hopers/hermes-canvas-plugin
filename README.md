@@ -109,7 +109,8 @@ Asset/shape record format: [docs/PROTOCOL.md](docs/PROTOCOL.md).
 Write the result to `$HERMES_HOME/canvas/canvas.html`, hit **Refresh**
 in the canvas page. Loop:
 
-1. Agent puts images on the board (WebP data URLs, ≤640 px)
+1. Agent puts images on the board (WebP data URLs, ≤640 px) — or **you paste
+   your own**, see [Pasting images](#pasting-images)
 2. You circle / arrow / text / drop move-pairs or AI-slots
 3. Hit **回传画布** ("send back") — marks land in the session as
    `CANVAS-V1-C` JSON
@@ -127,6 +128,53 @@ The `canvas_write` tool accepts either the edited full HTML or a bare
 `{"assets":[],"shapes":[...]}` JSON (it then wraps a minimal esm.sh shell
 — needs network at view time; the demo route above never does).
 
+## Pasting images
+
+You don't have to route images through the agent. Click the board, then
+**Ctrl+V** (⌘V) — the file is uploaded byte-for-byte to
+`$HERMES_HOME/canvas/assets/` and shown from a local data URL. Nothing is
+downscaled or re-encoded on the way in.
+
+The send-back payload then carries a filename instead of pixels:
+
+```json
+{"id":"shape:…","mime":"image/png","asset":"paste-20261103-…png","naturalW":795,"naturalH":475}
+```
+
+so the agent opens the original file — full resolution, the same bytes you
+pasted. Board state (shapes + asset references) autosaves to
+`$HERMES_HOME/canvas/state.json` about 1.5 s after each edit, so a refresh
+restores your board; `canvas_write` deletes it when the agent writes a new one.
+
+### Why the indirection
+
+Three constraints stack up, and all three are load-bearing:
+
+1. **Sandboxed iframe, no cookie.** The canvas runs in
+   `sandbox="allow-scripts"` (opaque origin). Its `fetch` carries no session
+   cookie, so the gateway's auth middleware — which runs *before* plugin
+   routes and only trusts cookies — answers 401. The browser reports this as
+   `Failed to fetch` before any header is readable. Navigation (`iframe.src`)
+   *does* carry the cookie, which is why `/view` loads fine.
+2. **So uploads and state go through the host.** The canvas posts
+   `{__hermesCanvasRpc, op, payload}` up to the plugin page (which does have
+   the cookie); the plugin fetches, then posts the result back.
+3. **`blob:` is not a legal asset URL.** tldraw's asset schema accepts only
+   `data:`, `http:`, `https:` — a `blob:` src throws
+   `Expected a valid url … (invalid protocol)` and takes the whole board into
+   the error boundary. Display therefore uses a data URL; the server URL is
+   kept in `asset.meta.serverUrl` for the send-back and for rehydration.
+
+Rehydration on load follows the same path in reverse: state holds only URLs,
+and each referenced asset is fetched through the host and turned back into a
+data URL.
+
+> On the **Webapp** host (browser-based Desktop) the plugin page is itself
+> under a strict CSP without `'unsafe-inline'`. `srcdoc` iframes inherit the
+> parent CSP and die at `INIT`; that is why the browser host loads
+> `GET /view` as a separate document with its own policy. Native Electron has
+> no such policy and keeps using `srcdoc`.
+
 ## Repo layout
 
 ```
@@ -136,7 +184,7 @@ The `canvas_write` tool accepts either the edited full HTML or a bare
 ├── licenses/tldraw-LICENSE.md  # travels with the bundled tldraw (see NOTICE)
 ├── dashboard/
 │   ├── manifest.json      # backend route mount
-│   └── plugin_api.py      # GET /api/plugins/hermes-canvas/canvas → canvas.html
+│   └── plugin_api.py      # /canvas /view /asset /state /status /token
 ├── desktop/plugin.js      # Desktop half: sidebar page, iframe + prompt.submit relay
 └── docs/
     ├── PROTOCOL.md        # CANVAS-V1-C wire format + init payload spec
