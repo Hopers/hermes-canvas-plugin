@@ -11,6 +11,8 @@ The canvas content itself lives on the Hermes server
 from __future__ import annotations
 
 import json
+import secrets
+import time
 from pathlib import Path
 from typing import Any
 
@@ -115,6 +117,211 @@ def _minimal_shell(payload: dict[str, Any]) -> str:
     return _MINIMAL_SHELL.replace("__INIT_JSON__", init)
 
 
+# ---- 读板面（canvas_read）----
+# 此前 agent 只能盲写：canvas_write 整板覆盖，写完看不见用户后来画了什么。
+# 这三个函数把「现在板上有什么」压成摘要还给 agent，add/update/delete 才有依据。
+def _load_state() -> dict | None:
+    try:
+        return json.loads((_canvas_dir() / "state.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _load_initial() -> dict | None:
+    """state.json 被 canvas_write 删掉时，回落到 agent 上次写的 __INITIAL__。"""
+    try:
+        html = (_canvas_dir() / "canvas.html").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    marker = "window.__INITIAL__ = "
+    i = html.find(marker)
+    if i < 0:
+        return None
+    try:
+        obj, _ = json.JSONDecoder().raw_decode(html[i + len(marker):])
+    except ValueError:
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
+def _shape_text(shape: dict) -> str:
+    if shape.get("label"):
+        return str(shape["label"])[:80]
+    rt = (shape.get("props") or {}).get("richText")
+    if isinstance(rt, dict):
+        out: list[str] = []
+
+        def walk(node: Any) -> None:
+            if not isinstance(node, dict):
+                return
+            if node.get("type") == "text" and isinstance(node.get("text"), str):
+                out.append(node["text"])
+            for child in node.get("content") or []:
+                walk(child)
+
+        walk(rt)
+        return "".join(out)[:80]
+    return ""
+
+
+def _summarize(shapes: list) -> dict:
+    by_type: dict[str, int] = {}
+    marks: list[dict] = []
+    images: list[dict] = []
+    xs: list[float] = []
+    ys: list[float] = []
+    xe: list[float] = []
+    ye: list[float] = []
+    for s in shapes:
+        if not isinstance(s, dict):
+            continue
+        t = str(s.get("type") or "?")
+        by_type[t] = by_type.get(t, 0) + 1
+        props = s.get("props") or {}
+        x, y = s.get("x") or 0, s.get("y") or 0
+        w, h = props.get("w") or 0, props.get("h") or 0
+        xs.append(x); ys.append(y); xe.append(x + w); ye.append(y + h)
+        row = {"id": s.get("id"), "x": round(x), "y": round(y), "w": round(w), "h": round(h)}
+        if t == "image":
+            images.append({**row, "asset": props.get("assetId")})
+        else:
+            marks.append({**row, "t": t, "text": _shape_text(s)})
+    marks.sort(key=lambda m: (m["y"], m["x"]))
+    return {
+        "total": len(shapes),
+        "by_type": by_type,
+        "bounds": {
+            "x": round(min(xs)) if xs else 0,
+            "y": round(min(ys)) if ys else 0,
+            "w": round(max(xe) - min(xs)) if xe else 0,
+            "h": round(max(ye) - min(ys)) if ye else 0,
+        },
+        "images": images[:20],
+        "images_truncated": max(0, len(images) - 20),
+        "marks": marks[:60],
+        "marks_truncated": max(0, len(marks) - 60),
+    }
+
+
+def canvas_read() -> str:
+    """Board summary for the agent: counts, bounds, labels, images, pending proposals."""
+    state = _load_state()
+    shapes = state.get("shapes") if isinstance(state, dict) else None
+    source = "state.json"
+    if not isinstance(shapes, list) or not shapes:
+        shapes = (_load_initial() or {}).get("shapes") or []
+        source = "__INITIAL__"
+    pending = sorted(p.name[:-5] for p in (_canvas_dir() / "proposals").glob("*.json"))
+    return json.dumps({
+        "ok": True,
+        "source": source,
+        "saved_at": (state or {}).get("savedAt") if isinstance(state, dict) else None,
+        **_summarize(shapes),
+        "pending_proposals": pending,
+    }, ensure_ascii=False)
+
+
+# ---- 提议层（canvas_propose）----
+# 从 hermes-whiteboard 吸收：agent 只有提案权。改动写成 proposal 落到画布的幽灵层，
+# 用户点「接受」才真的落到板上，一次撤销回滚整批；「忽略」则原样丢弃。
+MAX_OPS = 60
+MAX_PENDING_PROPOSALS = 20
+_OP_KINDS = ("add", "update", "delete")
+
+
+def _proposals_dir() -> Path:
+    return _canvas_dir() / "proposals"
+
+
+def canvas_propose(ops: Any = None, summary: str = "") -> str:
+    """Stage a batch of board changes for the person to accept or dismiss in the canvas."""
+    if not isinstance(ops, list) or not ops:
+        return json.dumps({"success": False, "error": "ops must be a non-empty array"}, ensure_ascii=False)
+    if len(ops) > MAX_OPS:
+        return json.dumps({"success": False, "error": f"at most {MAX_OPS} ops per proposal"}, ensure_ascii=False)
+    text = (summary or "").strip()[:200]
+    if not text:
+        return json.dumps({"success": False, "error": "summary is required (one line, what these changes do)"}, ensure_ascii=False)
+
+    d = _proposals_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    pending = [p for p in d.glob("*.json") if not p.name.startswith(".")]
+    if len(pending) >= MAX_PENDING_PROPOSALS:
+        return json.dumps({
+            "success": False,
+            "error": f"{len(pending)} proposals already waiting on the board; accept or dismiss those first",
+            "pending": sorted(p.name[:-5] for p in pending),
+        }, ensure_ascii=False)
+
+    state = _load_state()
+    known = {s.get("id") for s in (state or {}).get("shapes", []) if isinstance(s, dict)} if isinstance(state, dict) else set()
+    if not known:
+        known = {s.get("id") for s in ((_load_initial() or {}).get("shapes") or []) if isinstance(s, dict)}
+
+    problems: list[str] = []
+    clean: list[dict] = []
+    for i, op in enumerate(ops):
+        if not isinstance(op, dict):
+            problems.append(f"ops[{i}] is not an object")
+            continue
+        kind = str(op.get("op") or "")
+        if kind not in _OP_KINDS:
+            problems.append(f"ops[{i}]: op must be add/update/delete")
+            continue
+        if kind == "add":
+            shape = op.get("shape")
+            if not isinstance(shape, dict) or not shape.get("type"):
+                problems.append(f"ops[{i}]: add needs shape{{type,...}}")
+                continue
+            clean.append({"op": "add", "shape": shape, "reason": str(op.get("reason") or "")[:120] or None})
+            continue
+        sid = str(op.get("id") or "")
+        if not sid:
+            problems.append(f"ops[{i}]: {kind} needs id")
+            continue
+        if known and sid not in known:
+            problems.append(f"ops[{i}]: no shape {sid!r} on the board")
+            continue
+        if kind == "update":
+            raw_patch = op.get("patch")
+            patch = raw_patch if isinstance(raw_patch, dict) else {}
+            if "props" not in patch and not any(k in patch for k in ("x", "y", "parentId", "opacity", "meta")):
+                problems.append(f"ops[{i}]: update needs a patch with x/y/props/…")
+                continue
+            clean.append({"op": "update", "id": sid, "patch": patch, "reason": str(op.get("reason") or "")[:120] or None})
+        else:
+            clean.append({"op": "delete", "id": sid, "reason": str(op.get("reason") or "")[:120] or None})
+
+    if problems:
+        return json.dumps({
+            "success": False,
+            "error": "; ".join(problems[:6]),
+            "hint": "call canvas_read first — it lists the ids currently on the board",
+            "available_ids": sorted(i for i in known if i)[:40],
+        }, ensure_ascii=False)
+
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    pid = f"p-{stamp}-{secrets.token_hex(3)}"
+    doc = {
+        "id": pid,
+        "summary": text,
+        "createdAt": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "ops": clean,
+    }
+    target = d / f"{pid}.json"
+    tmp = target.with_name(f".{target.name}.part")
+    tmp.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(target)
+    return json.dumps({
+        "success": True,
+        "id": pid,
+        "ops": len(clean),
+        "summary": text,
+        "pending": len(pending) + 1,
+        "hint": "the canvas polls every 4s and shows these as a ghost layer; the person accepts or dismisses",
+    }, ensure_ascii=False)
+
+
 def register(ctx: Any) -> None:
     ctx.register_tool(
         name="canvas_write",
@@ -143,4 +350,55 @@ def register(ctx: Any) -> None:
         requires_env=[],
         description="Write the Hermes infinite canvas",
         emoji="🎨",
+    )
+    ctx.register_tool(
+        name="canvas_read",
+        toolset="hermes-canvas",
+        schema={
+            "name": "canvas_read",
+            "description": (
+                "Read what is currently on the Hermes canvas: shape counts by type, board bounds, up to 60 "
+                "marks (id, type, x/y/w/h, text) and up to 20 image refs, plus any proposals still waiting "
+                "for review. Call this BEFORE canvas_propose — add/update/delete must target real shape ids."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+        handler=lambda args, **kw: canvas_read(),
+        check_fn=lambda: True,
+        requires_env=[],
+        description="Read the current Hermes canvas board",
+        emoji="📖",
+    )
+    ctx.register_tool(
+        name="canvas_propose",
+        toolset="hermes-canvas",
+        schema={
+            "name": "canvas_propose",
+            "description": (
+                "Propose canvas changes instead of rewriting the whole board. Ops are staged and shown as a "
+                "ghost layer in the canvas; the person accepts or dismisses them. Each op: "
+                "{op:'add', shape:{type,x,y,props}}, {op:'update', id, patch:{x,y,props}}, "
+                "{op:'delete', id}. Always canvas_read first — updates and deletes must name existing ids."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ops": {
+                        "type": "array",
+                        "items": {"type": "object"},
+                        "description": "add / update / delete operations, at most 60",
+                    },
+                    "summary": {
+                        "type": "string",
+                        "description": "One line telling the person what these changes do",
+                    },
+                },
+                "required": ["ops", "summary"],
+            },
+        },
+        handler=lambda args, **kw: canvas_propose(ops=args.get("ops"), summary=args.get("summary", "")),
+        check_fn=lambda: True,
+        requires_env=[],
+        description="Propose canvas changes for review",
+        emoji="✏️",
     )

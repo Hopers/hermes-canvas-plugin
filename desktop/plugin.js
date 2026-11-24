@@ -131,6 +131,25 @@ function CanvasPage({ ctx }) {
             reply({ ok: true, data: await r.blob() })
             return
           }
+          // 提议层：画布轮询待审提案，用户决定后 ack（文件即删，页面是唯一真相）
+          if (d.op === 'proposals-list') {
+            const r = await fetch(`api/plugins/hermes-canvas/proposals?${q()}`)
+            const j = await r.json().catch(() => null)
+            if (!r.ok) throw new Error((j && j.detail) || 'HTTP ' + r.status)
+            reply({ ok: true, data: j })
+            return
+          }
+          if (d.op === 'proposals-ack') {
+            const id = (d.payload && d.payload.id) || ''
+            if (!id) throw new Error('没有提案 id')
+            const r = await fetch(`api/plugins/hermes-canvas/proposals/${encodeURIComponent(id)}/ack?${q()}`, {
+              method: 'POST',
+            })
+            const j = await r.json().catch(() => null)
+            if (!r.ok) throw new Error((j && j.detail) || 'HTTP ' + r.status)
+            reply({ ok: true, data: j })
+            return
+          }
           throw new Error('未知操作 ' + d.op)
         } catch (e) {
           reply({ ok: false, error: (e && e.message) || String(e) })

@@ -306,6 +306,62 @@ async def clear_state(token: str | None = Query(None)) -> JSONResponse:
     return JSONResponse({"ok": True}, headers=CORS_OPAQUE)
 
 
+# ---- 提议层（propose → 人审 → 接受 / 忽略）----
+# Agent 不再直接重写整板：它把「想做的改动」写成一份 proposal，画布把它渲染成半透明幽灵层，
+# 用户逐条接受才落到真板上，忽略就原样丢弃。这是从 hermes-whiteboard 吸收的设计——
+# 页面是唯一真相，agent 只有提案权。文件与 state/assets 同级，随 profile 走。
+_PROPOSAL_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+MAX_PENDING_PROPOSALS = 20
+
+
+def _proposals_dir() -> Path:
+    return _home() / "canvas" / "proposals"
+
+
+def _proposal_path(pid: str) -> Path:
+    if not _PROPOSAL_ID.match(pid or ""):
+        raise HTTPException(status_code=400, detail="bad proposal id")
+    return _proposals_dir() / f"{pid}.json"
+
+
+def list_pending_proposals() -> list[dict]:
+    """Pending proposals, oldest first. Torn or foreign files are skipped, never fatal."""
+    out: list[dict] = []
+    d = _proposals_dir()
+    if not d.is_dir():
+        return out
+    for entry in sorted(d.glob("*.json")):
+        if entry.name.startswith("."):
+            continue
+        try:
+            doc = json.loads(entry.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(doc, dict) and isinstance(doc.get("ops"), list):
+            out.append(doc)
+    out.sort(key=lambda p: str(p.get("createdAt") or ""))
+    return out
+
+
+@router.get("/proposals")
+async def get_proposals(token: str | None = Query(None)) -> JSONResponse:
+    """What the agent is waiting on: the canvas turns these into its ghost layer."""
+    _require(token)
+    return JSONResponse({"ok": True, "proposals": list_pending_proposals()}, headers=CORS_OPAQUE)
+
+
+@router.post("/proposals/{pid}/ack")
+async def ack_proposal(pid: str, token: str | None = Query(None)) -> JSONResponse:
+    """The person decided: accepted or dismissed. Either way the inbox entry is done."""
+    _require(token)
+    path = _proposal_path(pid)
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    return JSONResponse({"ok": True, "id": pid}, headers=CORS_OPAQUE)
+
+
 @router.get("/status")
 async def status() -> dict:
     path = _canvas_path()
