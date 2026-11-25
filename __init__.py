@@ -407,6 +407,7 @@ def _link_session(session_id: str) -> None:
     if doc.get("session_id") != session_id:
         doc.update({"session_id": session_id, "linkedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ")})
         doc.pop("board_hash", None)  # 换会话了，摘要要重新注入一次
+        doc.pop("injected_at", None)
         _write_json(path, doc)
 
 
@@ -466,9 +467,15 @@ def _hook_pre_llm_call(**kw: Any) -> dict | None:
             return None  # 画布关着（或切到别的标签页）：别把板面塞进无关的对话
         _set_status("working", "", sid)
         context, digest = _board_snapshot()
-        if link.get("board_hash") == digest:
-            return None  # 板没变：上一轮已注入过
+        # 板没变就不重复注入；但隔太久（可能已被压缩掉）要重新给一次
+        try:
+            stale = (time.time() - float(link.get("injected_at") or 0)) > 600
+        except Exception:
+            stale = True
+        if link.get("board_hash") == digest and not stale:
+            return None
         link["board_hash"] = digest
+        link["injected_at"] = time.time()
         _write_json(_links_path(), link)
         return {"context": context}
     except Exception:
