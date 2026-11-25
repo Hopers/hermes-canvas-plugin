@@ -164,6 +164,19 @@ def _shape_text(shape: dict) -> str:
     return ""
 
 
+def _measured(s: dict, props: dict) -> tuple:
+    """(x, y, w, h, exact) —— 优先用画布存的实测边界 meta.mb。
+
+    shape 顶层没有 w/h；text 的 props.w 是折行宽度（autoSize 默认 8）、props.h 不存在，
+    直接读 props 会得到「宽 8 高 0」的假值，还会让整板 bounds 被低估。
+    """
+    mb = (s.get("meta") or {}).get("mb")
+    if isinstance(mb, (list, tuple)) and len(mb) == 4 and all(isinstance(v, (int, float)) for v in mb):
+        return float(mb[0]), float(mb[1]), float(mb[2]), float(mb[3]), True
+    return (float(s.get("x") or 0), float(s.get("y") or 0),
+            float(props.get("w") or 0), float(props.get("h") or 0), False)
+
+
 def _summarize(shapes: list) -> dict:
     by_type: dict[str, int] = {}
     marks: list[dict] = []
@@ -178,10 +191,17 @@ def _summarize(shapes: list) -> dict:
         t = str(s.get("type") or "?")
         by_type[t] = by_type.get(t, 0) + 1
         props = s.get("props") or {}
-        x, y = s.get("x") or 0, s.get("y") or 0
-        w, h = props.get("w") or 0, props.get("h") or 0
-        xs.append(x); ys.append(y); xe.append(x + w); ye.append(y + h)
-        row = {"id": s.get("id"), "x": round(x), "y": round(y), "w": round(w), "h": round(h)}
+        x, y, w, h, exact = _measured(s, props)
+        # 没测过的文字不报假尺寸：w/h 给 None，且不参与 bounds 计算
+        unknown_text = (not exact) and t == "text"
+        xs.append(x); ys.append(y)
+        xe.append(x if unknown_text else x + w)
+        ye.append(y if unknown_text else y + h)
+        row = {
+            "id": s.get("id"), "x": round(x), "y": round(y),
+            "w": None if unknown_text else round(w),
+            "h": None if unknown_text else round(h),
+        }
         if t == "image":
             images.append({**row, "asset": props.get("assetId")})
         else:
