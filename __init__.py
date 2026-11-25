@@ -10,7 +10,9 @@ The canvas content itself lives on the Hermes server
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import secrets
 import time
 from pathlib import Path
@@ -348,6 +350,144 @@ def canvas_propose(ops: Any = None, summary: str = "") -> str:
     }, ensure_ascii=False)
 
 
+# ---- hooks：板↔会话联动 ----
+# 设计取舍（用户 2026-11-25 拍板）：
+#   · 不做 WS/长连接，维持现有轮询；状态灯搭 /proposals 的便车，零新增请求
+#   · 「回传画布」通道保留不动——它是显式、全保真（精确坐标 + 标注语义）
+#   · hook 只做两件事：认出回传并把该会话登记为「板主」；板主会话每轮自动附带板面摘要
+#   · 不做隐藏会话：推理和回答都留在用户会话里
+def _links_path() -> Path:
+    return _canvas_dir() / "links.json"
+
+
+def _status_path() -> Path:
+    return _canvas_dir() / "session-status.json"
+
+
+def _read_json(path: Path, default: Any) -> Any:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
+def _write_json(path: Path, doc: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
+def _link_session(session_id: str) -> None:
+    """记住哪条会话在跟这块板对话；hook 只给这条会话自动带板面上下文。"""
+    if not session_id:
+        return
+    path = _links_path()
+    doc = _read_json(path, {})
+    if not isinstance(doc, dict):
+        doc = {}
+    if doc.get("session_id") != session_id:
+        doc.update({"session_id": session_id, "linkedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ")})
+        doc.pop("board_hash", None)  # 换会话了，摘要要重新注入一次
+        _write_json(path, doc)
+
+
+def _set_status(state: str, detail: str = "", session_id: str = "") -> None:
+    """状态灯的数据源：画布从 /proposals 里顺带读走。"""
+    _write_json(_status_path(), {
+        "state": state,
+        "detail": (detail or "")[:200],
+        "session_id": session_id,
+        "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    })
+
+
+def _board_snapshot() -> tuple[str, str]:
+    """(摘要文本, 指纹)。指纹没变就不重复注入——注入会写进用户消息，重复=白占上下文。"""
+    state = _load_state()
+    shapes = state.get("shapes") if isinstance(state, dict) else None
+    if not isinstance(shapes, list) or not shapes:
+        shapes = (_load_initial() or {}).get("shapes") or []
+    s = _summarize(shapes)
+    pending = sorted(p.name[:-5] for p in (_canvas_dir() / "proposals").glob("*.json"))
+    b = s["bounds"]
+    by_type = ", ".join(f"{k} {v}" for k, v in sorted(s["by_type"].items())) or "空板"
+    lines = [
+        f"[canvas 自动附带] 板面 {s['total']} 个形状（{by_type}），范围 x{b['x']} y{b['y']} {b['w']}×{b['h']}",
+        f"待审提案 {len(pending)} 条" + ("" if not pending else "：" + ", ".join(pending[:3])),
+    ]
+    imgs = s["images"][:3]
+    if imgs:
+        lines.append("图片：" + "；".join(f"{i['id']} @({i['x']},{i['y']}) {i['w']}×{i['h']}" for i in imgs))
+    texts = [m for m in s["marks"] if m.get("text")][:5]
+    if texts:
+        lines.append("文字：" + "；".join(f"{m['id']}「{str(m['text'])[:20]}」" for m in texts))
+    lines.append("要改板：canvas_read 取全量 id → canvas_propose 提案（别 canvas_write 整板覆盖，会盖掉用户的手改）。")
+    digest = hashlib.sha1(json.dumps(
+        [s["total"], s["by_type"], b, pending,
+         [(m["id"], m["x"], m["y"]) for m in s["marks"]],
+         [(i["id"], i["x"], i["y"]) for i in s["images"]]],
+        sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+    return "\n".join(lines), digest
+
+
+def _hook_pre_llm_call(**kw: Any) -> dict | None:
+    """① 认出「回传画布」并登记板主；② 板主会话每轮自动附带板面摘要。"""
+    try:
+        sid = str(kw.get("session_id") or "")
+        msg = kw.get("user_message")
+        msg = msg if isinstance(msg, str) else ""
+        if "CANVAS-V1-C" in msg:
+            _link_session(sid)
+            _set_status("working", "收到回传，正在看板", sid)
+            return None  # payload 本身就是全量标注，不必再叠一层摘要
+        link = _read_json(_links_path(), {})
+        if not sid or not isinstance(link, dict) or link.get("session_id") != sid:
+            return None
+        _set_status("working", "", sid)
+        context, digest = _board_snapshot()
+        if link.get("board_hash") == digest:
+            return None  # 板没变：上一轮已注入过
+        link["board_hash"] = digest
+        _write_json(_links_path(), link)
+        return {"context": context}
+    except Exception:
+        return None
+
+
+def _hook_post_llm_call(**kw: Any) -> None:
+    """一轮答完：状态灯转绿，并把回答首行带给画布。"""
+    try:
+        sid = str(kw.get("session_id") or "")
+        link = _read_json(_links_path(), {})
+        if not sid or not isinstance(link, dict) or link.get("session_id") != sid:
+            return
+        resp = kw.get("assistant_response")
+        first = ""
+        if isinstance(resp, str):
+            first = next((ln.strip() for ln in resp.splitlines() if ln.strip()), "")
+        _set_status("done", first[:120], sid)
+    except Exception:
+        pass
+
+
+def _hook_on_session_end(**kw: Any) -> None:
+    """失败/被打断才改状态——成功那轮已由 post_llm_call 写成 done。"""
+    try:
+        sid = str(kw.get("session_id") or "")
+        link = _read_json(_links_path(), {})
+        if not sid or not isinstance(link, dict) or link.get("session_id") != sid:
+            return
+        if kw.get("failed"):
+            _set_status("error", str(kw.get("turn_exit_reason") or "失败"), sid)
+        elif kw.get("interrupted"):
+            _set_status("stopped", str(kw.get("turn_exit_reason") or "被打断"), sid)
+    except Exception:
+        pass
+
+
 def register(ctx: Any) -> None:
     ctx.register_tool(
         name="canvas_write",
@@ -428,3 +568,7 @@ def register(ctx: Any) -> None:
         description="Propose canvas changes for review",
         emoji="✏️",
     )
+    # 板↔会话联动：认出回传 → 登记板主 → 板主每轮自动带板面摘要 + 状态灯
+    ctx.register_hook("pre_llm_call", _hook_pre_llm_call)
+    ctx.register_hook("post_llm_call", _hook_post_llm_call)
+    ctx.register_hook("on_session_end", _hook_on_session_end)

@@ -8,4 +8,7 @@ provides_tools:
   - canvas_write
   - canvas_read
   - canvas_propose
-provides_hooks: []
+provides_hooks:
+  - pre_llm_call
+  - post_llm_call
+  - on_session_end

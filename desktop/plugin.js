@@ -13,6 +13,22 @@ function CanvasPage({ ctx }) {
   const [lastSent, setLastSent] = useState('')
   const frameRef = useRef(null)
   const tokenRef = useRef('')
+  const linkedRef = useRef('')
+
+  // 登记「哪条会话在跟这块板对话」：服务端 hooks 据此给该会话自动附带板面摘要。
+  // 焦点会话变了就重新登记（切换聊天后再动板子也会自动跟上），失败不影响画布。
+  const linkIfChanged = () => {
+    try {
+      const sid = host.state && host.state.focusedSessionId ? host.state.focusedSessionId.get() : ''
+      if (!sid || sid === linkedRef.current || !tokenRef.current) return
+      linkedRef.current = sid
+      fetch(`api/plugins/hermes-canvas/link?token=${encodeURIComponent(tokenRef.current)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sid }),
+      }).catch(() => {})
+    } catch (e) { /* 拿不到焦点会话就算了 */ }
+  }
 
   // The Webapp serves the canvas as its own document (GET /api/plugins/hermes-canvas/view).
   // An iframe `src` gets that response's CSP; `srcdoc` would inherit the host page's — and the
@@ -50,6 +66,7 @@ function CanvasPage({ ctx }) {
         const minted = await ctx.rest('/token')
         tokenRef.current = minted && minted.token ? minted.token : ''
         applySrc(tokenRef.current)
+        linkIfChanged()
       } catch (e) {
         applySrc('') // the route mints one itself; the frame still boots
       }
@@ -89,6 +106,7 @@ function CanvasPage({ ctx }) {
           return parts.join('&')
         }
         try {
+          linkIfChanged()
           if (d.op === 'asset') {
             const payload = d.payload || {}
             if (!payload.file) throw new Error('没有收到图片数据')

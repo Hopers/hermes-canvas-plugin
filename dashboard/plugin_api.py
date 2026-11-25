@@ -345,9 +345,38 @@ def list_pending_proposals() -> list[dict]:
 
 @router.get("/proposals")
 async def get_proposals(token: str | None = Query(None)) -> JSONResponse:
-    """What the agent is waiting on: the canvas turns these into its ghost layer."""
+    """What the agent is waiting on: the canvas turns these into its ghost layer.
+
+    Also carries the session status light, so the existing 4s poll costs no extra request."""
     _require(token)
-    return JSONResponse({"ok": True, "proposals": list_pending_proposals()}, headers=CORS_OPAQUE)
+    status = None
+    try:
+        status = json.loads((_canvas_path().parent / "session-status.json").read_text(encoding="utf-8"))
+    except Exception:
+        status = None
+    return JSONResponse({"ok": True, "proposals": list_pending_proposals(), "status": status}, headers=CORS_OPAQUE)
+
+
+@router.post("/link")
+async def link_session(request: Request, token: str | None = Query(None)) -> JSONResponse:
+    """The canvas page opened in a session: remember which one, so the hooks know who to feed."""
+    _require(token)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    sid = str((body or {}).get("session_id") or "")
+    if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", sid):
+        raise HTTPException(status_code=400, detail="bad session_id")
+    path = _canvas_path().parent / "links.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps({
+        "session_id": sid,
+        "linkedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
+    return JSONResponse({"ok": True, "session_id": sid}, headers=CORS_OPAQUE)
 
 
 @router.post("/proposals/{pid}/ack")
