@@ -293,6 +293,12 @@ def canvas_propose(ops: Any = None, summary: str = "") -> str:
             if not isinstance(shape, dict) or not shape.get("type"):
                 problems.append(f"ops[{i}]: add needs shape{{type,...}}")
                 continue
+            # add 撞 id 会静默覆盖：tldraw 的 createShapes 不报错，直接把板上那个形状
+            # 换成幽灵（实测 w 200→50、opacity→0.4），用户再点「忽略」就真删了他的东西。
+            new_id = str(shape.get("id") or "")
+            if new_id and new_id in known:
+                problems.append(f"ops[{i}]: add id {new_id!r} is already on the board — use update, or drop the id and let the canvas mint one")
+                continue
             clean.append({"op": "add", "shape": shape, "reason": str(op.get("reason") or "")[:120] or None})
             continue
         sid = str(op.get("id") or "")
