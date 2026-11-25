@@ -421,6 +421,64 @@ def _set_status(state: str, detail: str = "", session_id: str = "") -> None:
     })
 
 
+def _snapshot_path() -> Path:
+    return _canvas_dir() / "last-snapshot.json"
+
+
+def _snapshot_shapes(shapes: list) -> dict:
+    """id → 可比较的最小事实（类型/位置/尺寸/文字），用来算 delta。"""
+    out: dict[str, dict] = {}
+    for s in shapes:
+        if not isinstance(s, dict):
+            continue
+        sid = str(s.get("id") or "")
+        if not sid:
+            continue
+        props = s.get("props") or {}
+        # 位置以 shape 的 x/y 为准（锚点），尺寸才用实测的 meta.mb——
+        # 全信 mb 会让「只改坐标、没触发重测」的极端情况漏掉移动
+        x = float(s.get("x") or 0)
+        y = float(s.get("y") or 0)
+        _mx, _my, w, h, _exact = _measured(s, props)
+        out[sid] = {
+            "t": str(s.get("type") or "?"),
+            "x": round(x), "y": round(y),
+            "w": round(w) if w else None,
+            "h": round(h) if h else None,
+            "text": _shape_text(s)[:80],
+        }
+    return out
+
+
+def _board_delta(prev: dict, cur: dict, limit: int = 10) -> tuple[list[str], int]:
+    """上一轮之后用户改了什么。
+
+    比「现在长什么样」更能支撑「把刚那个挪回来」这类指令——快照只告诉我它在
+    (384,235)，delta 才告诉我它原来在 (440,228)。"""
+    lines: list[str] = []
+    for sid, c in cur.items():
+        p = prev.get(sid)
+        if p is None:
+            what = f"新增 {sid}（{c['t']}）@({c['x']},{c['y']})"
+            if c["text"]:
+                what += f"「{c['text'][:30]}」"
+            lines.append(what)
+            continue
+        if abs(c["x"] - p["x"]) > 2 or abs(c["y"] - p["y"]) > 2:
+            lines.append(f"{sid} 从 ({p['x']},{p['y']}) 挪到 ({c['x']},{c['y']})")
+        if c["w"] and p["w"] and (c["w"] != p["w"] or c["h"] != p["h"]):
+            lines.append(f"{sid} 尺寸 {p['w']}×{p['h']} → {c['w']}×{c['h']}")
+        if c["text"] != p["text"]:
+            lines.append(f"{sid} 文字改为「{c['text'][:30]}」")
+    for sid, p in prev.items():
+        if sid not in cur:
+            what = f"删除 {sid}（{p['t']}）"
+            if p["text"]:
+                what += f"「{p['text'][:30]}」"
+            lines.append(what)
+    return lines[:limit], max(0, len(lines) - limit)
+
+
 def _board_snapshot() -> tuple[str, str]:
     """(摘要文本, 指纹)。指纹没变就不重复注入——注入会写进用户消息，重复=白占上下文。"""
     state = _load_state()
@@ -433,8 +491,19 @@ def _board_snapshot() -> tuple[str, str]:
     by_type = ", ".join(f"{k} {v}" for k, v in sorted(s["by_type"].items())) or "空板"
     lines = [
         f"[canvas 自动附带] 板面 {s['total']} 个形状（{by_type}），范围 x{b['x']} y{b['y']} {b['w']}×{b['h']}",
-        f"待审提案 {len(pending)} 条" + ("" if not pending else "：" + ", ".join(pending[:3])),
     ]
+    # delta：第一次没有基线就跳过（否则整板都会被报成「新增」）
+    prev = _read_json(_snapshot_path(), {})
+    cur = _snapshot_shapes(shapes)
+    if isinstance(prev, dict) and prev:
+        delta, extra = _board_delta(prev, cur)
+        if delta:
+            lines.append("用户改过板面（自上一轮）：")
+            lines.extend("- " + d for d in delta)
+            if extra:
+                lines.append(f"- …另有 {extra} 处改动")
+    _write_json(_snapshot_path(), cur)
+    lines.append(f"待审提案 {len(pending)} 条" + ("" if not pending else "：" + ", ".join(pending[:3])))
     imgs = s["images"][:3]
     if imgs:
         lines.append("图片：" + "；".join(f"{i['id']} @({i['x']},{i['y']}) {i['w']}×{i['h']}" for i in imgs))
