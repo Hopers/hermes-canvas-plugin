@@ -513,6 +513,28 @@ def _hook_on_session_end(**kw: Any) -> None:
         pass
 
 
+def _hook_post_compaction(**kw: Any) -> None:
+    """压缩会换 session id（child_session_id ← old_session_id）。
+
+    不跟着改的话，板主登记会在每次 /compress 之后静默失效——注入消失，用户得重新开画布。
+    改完还要清指纹：摘要可能已经被压缩掉了，得重新给一次。"""
+    try:
+        old = str(kw.get("old_session_id") or "")
+        new = str(kw.get("session_id") or "")
+        if not old or not new or old == new:
+            return
+        link = _read_json(_links_path(), {})
+        if not isinstance(link, dict) or link.get("session_id") != old:
+            return
+        link["session_id"] = new
+        link["relabeledAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        link.pop("board_hash", None)
+        link.pop("injected_at", None)
+        _write_json(_links_path(), link)
+    except Exception:
+        pass
+
+
 def register(ctx: Any) -> None:
     ctx.register_tool(
         name="canvas_write",
@@ -597,3 +619,4 @@ def register(ctx: Any) -> None:
     ctx.register_hook("pre_llm_call", _hook_pre_llm_call)
     ctx.register_hook("post_llm_call", _hook_post_llm_call)
     ctx.register_hook("on_session_end", _hook_on_session_end)
+    ctx.register_hook("post_compaction", _hook_post_compaction)
