@@ -45,7 +45,7 @@ concatenate, then `JSON.parse`.
 | `t` | tldraw shape type: `draw` / `arrow` / `text` / `geo` / `note` … |
 | `id` | shape id — **prefix carries semantics** (below) |
 | `x`,`y` | shape origin, canvas px, ints |
-| `w`,`h` | size when the type has one |
+| `w`,`h` | measured size in px (`editor.getShapePageBounds()`) — present for every type that renders a box, **including `text`**. Never read `props.w`/`props.h` yourself: shape records have no top-level `w`/`h`, and a text shape's `props.w` is only its wrap width (autoSize default `8`) |
 | `label` | label text if the shape has one |
 | `color` | tldraw color name (`red`, `blue`, …) |
 | `pts` | `draw` only: up to 24 sampled `[x,y]` points (every 3rd, relative to shape origin) |
