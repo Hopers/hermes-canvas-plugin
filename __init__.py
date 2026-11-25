@@ -364,6 +364,22 @@ def _status_path() -> Path:
     return _canvas_dir() / "session-status.json"
 
 
+def _poll_path() -> Path:
+    return _canvas_dir() / "last-poll.json"
+
+
+def _canvas_alive(max_age: float = 15.0) -> bool:
+    """画布是否真的开着：它每 4s 轮询一次 /proposals，服务端记时间戳。
+
+    判据用「还在轮询」而不是「登记过」——关掉画布 ≈15s 内自动停止附带板面摘要，
+    重开自动恢复，用户不用记得去解绑；换会话不打开画布也天然不带。"""
+    doc = _read_json(_poll_path(), {})
+    try:
+        return (time.time() - float(doc.get("t") or 0)) <= max_age
+    except Exception:
+        return False
+
+
 def _read_json(path: Path, default: Any) -> Any:
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -446,6 +462,8 @@ def _hook_pre_llm_call(**kw: Any) -> dict | None:
         link = _read_json(_links_path(), {})
         if not sid or not isinstance(link, dict) or link.get("session_id") != sid:
             return None
+        if not _canvas_alive():
+            return None  # 画布关着（或切到别的标签页）：别把板面塞进无关的对话
         _set_status("working", "", sid)
         context, digest = _board_snapshot()
         if link.get("board_hash") == digest:

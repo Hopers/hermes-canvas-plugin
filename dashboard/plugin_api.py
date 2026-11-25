@@ -349,6 +349,15 @@ async def get_proposals(token: str | None = Query(None)) -> JSONResponse:
 
     Also carries the session status light, so the existing 4s poll costs no extra request."""
     _require(token)
+    # 心跳：画布每 4s 来一次，服务端记时间戳——hook 用它判断「画布真的开着」
+    try:
+        poll = _canvas_path().parent / "last-poll.json"
+        poll.parent.mkdir(parents=True, exist_ok=True)
+        tmp = poll.with_name(poll.name + ".tmp")
+        tmp.write_text(json.dumps({"t": time.time()}), encoding="utf-8")
+        os.replace(tmp, poll)
+    except Exception:
+        pass
     status = None
     try:
         status = json.loads((_canvas_path().parent / "session-status.json").read_text(encoding="utf-8"))
