@@ -188,7 +188,9 @@ data URL.
 │   ├── entry.jsx          # canvas app: tldraw, proposals ghost layer, AGENT zone, send channels
 │   ├── shell.html         # the editorial chrome around the canvas
 │   ├── build_canvas.py    # shell + CSS + bundle + __INITIAL__ -> self-contained html
-│   └── asset-urls.generated.mjs  # tldraw runtime assets as data: URLs
+│   ├── tldraw-min.css     # tldraw's stylesheet, inlined at build time
+│   ├── asset-urls.generated.mjs  # tldraw runtime assets as data: URLs
+│   └── design-assets/anton.b64   # the display face, inlined at build time
 ├── licenses/tldraw-LICENSE.md  # travels with the bundled tldraw (see NOTICE)
 ├── dashboard/
 │   ├── manifest.json      # backend route mount

@@ -148,10 +148,69 @@ Notes:
 
 1. Agent builds board (images + any scaffold) → edits the demo's
    `__INITIAL__` segment, `canvas_write` → user hits **Refresh** in the
-   Desktop page.
+   Desktop page. This is the *whole-board* route — use it for a rebuild,
+   not for a tweak (it discards whatever the person had in `state.json`).
 2. User annotates (draw/arrow/text freely, or the scaffold tools) →
    **回传画布**.
 3. Payload arrives in the session (fragmented on the widget channel).
 4. Agent parses per above, generates/edits images, lays results out next
-   to the originals (e.g. new image at `x + 700`), rebuilds the board.
-5. Goto 1 — the loop converges when the user stops marking.
+   to the originals (e.g. new image at `x + 700`).
+5. **For edits to an existing board, propose instead of rewriting** — see
+   below. `canvas_read` → `canvas_propose` → the person accepts on the
+   canvas.
+6. Goto 1 — the loop converges when the user stops marking.
+
+## Proposal queue (`canvas_propose`)
+
+The agent never writes the live board directly. `canvas_propose` drops a
+file into `$HERMES_HOME/canvas/proposals/`, the canvas polls it and shows
+the changes as a ghost layer; the person clicks **接受** (commit) or
+**忽略** (discard), which deletes the file.
+
+```json
+{
+  "id": "p-20261125-091208-763770",
+  "summary": "把图挪回原位 (305,294) → (384,234)",
+  "ops": [
+    {"op": "add",    "shape": { "...full tldraw v3 shape..." }, "reason": "optional, ≤120 chars"},
+    {"op": "update", "id": "shape:abc", "patch": {"x": 384, "y": 234}, "reason": "optional"},
+    {"op": "delete", "id": "shape:def", "reason": "optional"}
+  ],
+  "created_at": "2026-11-25T01:12:08Z"
+}
+```
+
+Rules (enforced server-side, all fail loudly):
+
+- `summary` is required, one line, ≤200 chars — it is what the person
+  reads on the canvas.
+- ≤60 ops per proposal; ≤20 proposals pending at once.
+- `add` whose `shape.id` already exists on the board is **rejected** —
+  use `update`, or drop the id and let the canvas mint one. tldraw
+  overwrites silently on id collision, so this is the only guard.
+- `update`/`delete` must reference a real shape id — call `canvas_read`
+  first; it returns ids plus measured bounds.
+
+Ghost shapes carry `meta.ghost` and are excluded from the board state,
+the send-back payload, and the shape counter, so an unaccepted proposal
+costs nothing if it is ignored.
+
+## Board ↔ session link (ambient context)
+
+Besides the explicit send-back, the plugin registers four hooks so the
+owning conversation knows about the board without being told:
+
+- the first `CANVAS-V1-C` from a session marks it as the board's owner
+  (`canvas/links.json`);
+- each turn in an owning session gets a board summary appended to the
+  user message, plus a **delta** of what the person changed since the
+  last turn (moved / resized / retyped / added / removed);
+- injection only happens while the canvas is actually open — it stamps
+  `canvas/last-poll.json` on every `/proposals` poll, and the hook
+  requires that heartbeat to be ≤15 s old;
+- the agent's state (working / done / error / stopped) is written to
+  `canvas/session-status.json` and shown in the canvas's AGENT line.
+
+Both channels coexist: the ambient one is a summary, the send-back one
+is full fidelity. Nothing here replaces the button.
+

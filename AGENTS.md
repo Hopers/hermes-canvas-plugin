@@ -19,8 +19,10 @@ Their goal: their own working canvas. Your job, in order:
    hermes plugins install Hopers/hermes-canvas-plugin --enable
    ```
    Verify with `hermes plugins doctor hermes-canvas`. If the install
-   target is the machine you run on, this registers the `canvas_write`
-   tool and mounts `GET /api/plugins/hermes-canvas/canvas`.
+   target is the machine you run on, this registers the
+   `canvas_read` / `canvas_propose` / `canvas_write` tools, four
+   board↔session hooks, and mounts the plugin's REST routes
+   (`/api/plugins/hermes-canvas/*`).
 
 2. **Desktop half (user must do this — you cannot):**
    Only needed in a **split topology** (Desktop app on a different machine
@@ -37,8 +39,10 @@ Their goal: their own working canvas. Your job, in order:
    sidebar. Do not claim the install is complete before this.
 
 3. **First board — copy the demo and swap its INIT payload.**
-   `demo/canvas.html` is a fully-built, zero-network board; there is no
-   build step in this repo — the artifact IS the template. The content is
+   `demo/canvas.html` is a fully-built, zero-network board; for content
+   changes the artifact IS the template (a `build/` pipeline exists for
+   structural changes — see the README — but you never need it to swap
+   content). The content is
    one JSON segment:
    `<script>window.__INITIAL__ = {"assets":[...],"shapes":[...]};</script>`
    — replace that segment (regex-locatable, single occurrence) with your
@@ -52,6 +56,23 @@ Their goal: their own working canvas. Your job, in order:
    `sed` them for localization if the user isn't Chinese-speaking.
    Then tell the user to hit **Refresh** in the canvas page.
 
+## Changing an existing board — propose, don't rewrite
+
+`canvas_write` replaces the whole board and discards the person's
+`state.json`. For any edit to a board that already exists, use the
+proposal queue instead:
+
+1. `canvas_read` — real shape ids, measured bounds, pending proposals.
+2. `canvas_propose` — a short `summary` plus add/update/delete ops that
+   reference those ids (format in `docs/PROTOCOL.md`).
+3. The canvas shows them as a ghost layer; the person clicks **接受** or
+   **忽略**. You are told nothing — check `canvas_read.pending_proposals`
+   if you need to know.
+
+An `add` whose id already exists is rejected outright (tldraw would
+otherwise overwrite silently), and ghost shapes never enter the saved
+board state, so an ignored proposal costs nothing.
+
 ## When annotations arrive (CANVAS-V1-C)
 
 A canvas round-trip message lands in your session as JSON, possibly as
@@ -59,6 +80,11 @@ A canvas round-trip message lands in your session as JSON, possibly as
 Semantics (move-pairs, AI-slots, free marks) are specified in
 `docs/PROTOCOL.md`. Read it before interpreting; the id prefixes carry
 the structure.
+
+While the canvas is open, the plugin also appends a **board summary plus
+a delta of what the person just changed** to your turn — you do not need
+to be sent the board to know what is on it. That context is ambient and
+summative; the button is still the full-fidelity channel.
 
 ## Hard rules
 
