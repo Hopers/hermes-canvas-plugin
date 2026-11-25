@@ -41,8 +41,11 @@ on the right — one round of the loop, done.*
   ([protocol spec](docs/PROTOCOL.md))
 - **Two hosts, one file** — chat widget (`::preview`) and Desktop sidebar
   page, auto-detected send channels
-- **Agent tool included** — `canvas_write` writes the board; your agent
-  can push new content without touching plugin code
+- **Agent tools included** — `canvas_read` / `canvas_propose` (the agent
+  proposes, the person accepts) plus `canvas_write` for whole-board rewrites
+- **Board ↔ session link** — hooks inject a board summary (plus what changed)
+  into the owning conversation, and report the agent's state back to the
+  canvas; the explicit "send canvas back" channel still works alongside it
 - **Hackable artifact** — `demo/canvas.html` is the board *and* the
   template: content is one JSON segment, chrome is plain text (below)
 
@@ -179,17 +182,27 @@ data URL.
 
 ```
 ├── plugin.yaml            # unified package manifest (agent + desktop halves)
-├── __init__.py            # agent half: canvas_write tool
+├── __init__.py            # agent half: canvas_read / canvas_propose / canvas_write + 4 hooks
 ├── demo/canvas.html       # the board AND the template — edit, never build
+├── build/                 # optional maintainer pipeline that produced it (see below)
+│   ├── entry.jsx          # canvas app: tldraw, proposals ghost layer, AGENT zone, send channels
+│   ├── shell.html         # the editorial chrome around the canvas
+│   ├── build_canvas.py    # shell + CSS + bundle + __INITIAL__ -> self-contained html
+│   └── asset-urls.generated.mjs  # tldraw runtime assets as data: URLs
 ├── licenses/tldraw-LICENSE.md  # travels with the bundled tldraw (see NOTICE)
 ├── dashboard/
 │   ├── manifest.json      # backend route mount
-│   └── plugin_api.py      # /canvas /view /asset /state /status /token
+│   └── plugin_api.py      # /canvas /view /asset /state /proposals /link /status /token
 ├── desktop/plugin.js      # Desktop half: sidebar page, iframe + prompt.submit relay
 └── docs/
     ├── PROTOCOL.md        # CANVAS-V1-C wire format + init payload spec
     └── TLDRAW-NOTES.md    # tldraw v3 zero-network inlining field notes
 ```
+
+`build/` is not needed to *use* the plugin — the shipped `demo/canvas.html`
+is still the editable template. It exists so the artifact is reproducible:
+`npm install` in `build/`, bundle with esbuild, then
+`python3 build/build_canvas.py <init.json> <out.html>`.
 
 ## Updating
 
@@ -223,10 +236,11 @@ Two topologies — check which one you are on:
   its existing authenticated connection to the Hermes server — no CDN, no
   public exposure, no stale cache. The day this channel fails, the plugin
   fails loudly instead of degrading to a stale fallback (deliberate).
-- **The artifact is the template.** No build pipeline to maintain, no
-  Node toolchain to install — an agent with `sed` and a JSON payload can
-  reshape the whole board. Complexity lives in the artifact once, not in
-  everyone's workflow forever.
+- **The artifact is the template.** An agent with `sed` and a JSON payload
+  can reshape the whole board — no toolchain required on the consumer side.
+  Complexity lives in the artifact once, not in everyone's workflow forever.
+  (`build/` is the optional pipeline that *produces* it, kept in-repo so the
+  artifact stays reproducible.)
 - **The *live* board never enters git.** Your working canvas is
   server-local state (`$HERMES_HOME/canvas/canvas.html`), rewritten every
   round; only the committed `demo/canvas.html` showcase travels with the

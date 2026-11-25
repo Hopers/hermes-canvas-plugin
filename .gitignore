@@ -2,3 +2,5 @@ node_modules/
 __pycache__/
 *.pyc
 *.log
+build/node_modules/
+build/canvas-bundle.js
